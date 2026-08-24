@@ -1,0 +1,75 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+
+ERROR - 2018-05-30 00:00:04 --> Severity: Notice --> Undefined index: staff_user_id /home/retailoc/public_html/new.wiscrm.com/application/models/Emails_model.php 332
+ERROR - 2018-05-30 00:00:04 --> Severity: Notice --> Trying to get property of non-object /home/retailoc/public_html/new.wiscrm.com/application/models/Emails_model.php 334
+ERROR - 2018-05-30 00:28:41 --> 404 Page Not Found: Viewinvoice/1201
+ERROR - 2018-05-30 09:16:21 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:26:46 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:27:34 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:29:25 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:29:37 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:29:42 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:29:47 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:29:47 --> Could not find the language line "Renewable"
+ERROR - 2018-05-30 09:29:47 --> Could not find the language line "From"
+ERROR - 2018-05-30 09:29:47 --> Could not find the language line "To"
+ERROR - 2018-05-30 09:29:47 --> Could not find the language line "Item Type"
+ERROR - 2018-05-30 09:30:33 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:36:30 --> Severity: Notice --> Undefined index: email_template_custom /home/retailoc/public_html/new.wiscrm.com/application/models/Invoices_model.php 1848
+ERROR - 2018-05-30 09:36:32 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:56:21 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 09:57:31 --> Severity: Notice --> Undefined variable: is_assigned /home/retailoc/public_html/new.wiscrm.com/application/views/admin/tasks/view_task_template.php 108
+ERROR - 2018-05-30 09:57:31 --> Severity: Notice --> Undefined variable: task_rel_data /home/retailoc/public_html/new.wiscrm.com/application/views/admin/tasks/view_task_template.php 165
+ERROR - 2018-05-30 09:57:31 --> Severity: Notice --> Undefined variable: task_rel_data /home/retailoc/public_html/new.wiscrm.com/application/views/admin/tasks/view_task_template.php 521
+ERROR - 2018-05-30 10:06:11 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 10:12:13 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 10:12:14 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 10:13:00 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 10:13:05 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 10:13:34 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 10:13:39 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 10:13:56 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 06:14:22 --> 404 Page Not Found: Viewinvoice/434
+ERROR - 2018-05-30 13:47:06 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:09:35 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:09:35 --> Could not find the language line ""
+ERROR - 2018-05-30 14:09:35 --> Could not find the language line "Created By"
+ERROR - 2018-05-30 14:09:35 --> Could not find the language line "Note"
+ERROR - 2018-05-30 14:20:00 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:35:35 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:35:39 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:36:21 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:39:04 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:39:13 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:45:49 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:47:47 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:49:43 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:49:50 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 14:49:50 --> Could not find the language line "Renewable"
+ERROR - 2018-05-30 14:49:50 --> Could not find the language line "From"
+ERROR - 2018-05-30 14:49:50 --> Could not find the language line "To"
+ERROR - 2018-05-30 14:49:50 --> Severity: Notice --> Undefined variable: class /home/retailoc/public_html/new.wiscrm.com/application/views/admin/proposals/save_send_proposal_to_email_template.php 52
+ERROR - 2018-05-30 14:49:50 --> Could not find the language line "Item Type"
+ERROR - 2018-05-30 15:02:08 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:02:15 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:02:15 --> Could not find the language line "Renewable"
+ERROR - 2018-05-30 15:02:15 --> Could not find the language line "From"
+ERROR - 2018-05-30 15:02:15 --> Could not find the language line "To"
+ERROR - 2018-05-30 15:02:15 --> Severity: Notice --> Undefined variable: class /home/retailoc/public_html/new.wiscrm.com/application/views/admin/proposals/save_send_proposal_to_email_template.php 52
+ERROR - 2018-05-30 15:02:15 --> Could not find the language line "Item Type"
+ERROR - 2018-05-30 15:04:00 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:05:29 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:05:31 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:05:54 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:06:10 --> Severity: Notice --> Undefined index: email_template_custom /home/retailoc/public_html/new.wiscrm.com/application/models/Invoices_model.php 1848
+ERROR - 2018-05-30 15:06:11 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:28:40 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:31:58 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:32:02 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:32:02 --> Could not find the language line "Renewable"
+ERROR - 2018-05-30 15:32:02 --> Could not find the language line "From"
+ERROR - 2018-05-30 15:32:02 --> Could not find the language line "To"
+ERROR - 2018-05-30 15:32:02 --> Severity: Notice --> Undefined variable: class /home/retailoc/public_html/new.wiscrm.com/application/views/admin/proposals/save_send_proposal_to_email_template.php 52
+ERROR - 2018-05-30 15:32:02 --> Could not find the language line "Item Type"
+ERROR - 2018-05-30 15:33:18 --> Could not find the language line "Proforma Invoice"
+ERROR - 2018-05-30 15:33:39 --> Could not find the language line "Proforma Invoice"

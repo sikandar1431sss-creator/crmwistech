@@ -1,0 +1,40 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+
+ERROR - 2018-02-21 00:38:56 --> Severity: Parsing Error --> syntax error, unexpected 'if' (T_IF) /home/newwiscrm/public_html/application/views/admin/invoices/invoice_template.php 669
+ERROR - 2018-02-21 00:42:15 --> Severity: Parsing Error --> syntax error, unexpected ')' /home/newwiscrm/public_html/application/views/admin/invoices/invoice_template.php 666
+ERROR - 2018-02-21 00:43:25 --> Severity: Parsing Error --> syntax error, unexpected '$hidden' (T_VARIABLE) /home/newwiscrm/public_html/application/views/admin/invoices/invoice_template.php 678
+ERROR - 2018-02-21 00:44:24 --> Severity: Parsing Error --> syntax error, unexpected '$hidden' (T_VARIABLE) /home/newwiscrm/public_html/application/views/admin/invoices/invoice_template.php 678
+ERROR - 2018-02-21 00:45:57 --> Severity: Parsing Error --> syntax error, unexpected '$hidden' (T_VARIABLE) /home/newwiscrm/public_html/application/views/admin/invoices/invoice_template.php 678
+ERROR - 2018-02-21 00:47:16 --> Could not find the language line "Renewable"
+ERROR - 2018-02-21 00:47:16 --> Could not find the language line "From"
+ERROR - 2018-02-21 00:47:16 --> Could not find the language line "To"
+ERROR - 2018-02-21 00:47:16 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:47:41 --> Could not find the language line "Renewable"
+ERROR - 2018-02-21 00:47:41 --> Could not find the language line "From"
+ERROR - 2018-02-21 00:47:41 --> Could not find the language line "To"
+ERROR - 2018-02-21 00:47:41 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:49:05 --> Could not find the language line "Renewable"
+ERROR - 2018-02-21 00:49:05 --> Could not find the language line "From"
+ERROR - 2018-02-21 00:49:05 --> Could not find the language line "To"
+ERROR - 2018-02-21 00:49:05 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:50:03 --> Could not find the language line "Renewable"
+ERROR - 2018-02-21 00:50:03 --> Could not find the language line "From"
+ERROR - 2018-02-21 00:50:03 --> Could not find the language line "To"
+ERROR - 2018-02-21 00:50:03 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:50:34 --> Could not find the language line "Renewable"
+ERROR - 2018-02-21 00:50:34 --> Could not find the language line "From"
+ERROR - 2018-02-21 00:50:34 --> Could not find the language line "To"
+ERROR - 2018-02-21 00:50:34 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:50:55 --> Could not find the language line "Renewable"
+ERROR - 2018-02-21 00:50:55 --> Could not find the language line "From"
+ERROR - 2018-02-21 00:50:55 --> Could not find the language line "To"
+ERROR - 2018-02-21 00:50:55 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:51:18 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:51:51 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:52:16 --> Could not find the language line "Renewable"
+ERROR - 2018-02-21 00:52:16 --> Could not find the language line "From"
+ERROR - 2018-02-21 00:52:16 --> Could not find the language line "To"
+ERROR - 2018-02-21 00:52:16 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:54:14 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:55:23 --> Could not find the language line "Item Type"
+ERROR - 2018-02-21 00:57:46 --> Could not find the language line "Item Type"

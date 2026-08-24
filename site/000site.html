@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Доставка по городу и области</title>
+    <link href="https://wiscrm.com/uploads/company/favicon.png" rel="shortcut icon">
+      <link href="https://wiscrm.com/assets/css/reset.min.css?v=2.0.1" rel="stylesheet">
+    <link href='https://wiscrm.com/assets/plugins/roboto/roboto.css' rel='stylesheet'>
+  <link href="https://wiscrm.com/assets/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://wiscrm.com/assets/plugins/jquery/jquery.min.js"></script>
+  <link href="https://wiscrm.com/assets/plugins/datatables/datatables.min.css" rel="stylesheet">
+  <link rel="stylesheet" type="text/css" href="https://wiscrm.com/assets/plugins/font-awesome/css/font-awesome.min.css">
+  <link href="https://wiscrm.com/assets/plugins/datetimepicker/jquery.datetimepicker.min.css" rel="stylesheet">
+  <link href="https://wiscrm.com/assets/plugins/bootstrap-select/css/bootstrap-select.min.css" rel="stylesheet">
+    <link href="https://wiscrm.com/assets/plugins/lightbox/css/lightbox.min.css" rel="stylesheet" />
+  <link rel="stylesheet" type="text/css" href="https://wiscrm.com/assets/plugins/bootstrap-colorpicker/css/bootstrap-colorpicker.min.css">
+  <link href="https://wiscrm.com/assets/css/bs-overides.min.css?v=2.0.1" rel="stylesheet">
+  <link href="https://wiscrm.com/assets/themes/perfex/css/style.min.css?v=2.0.1" rel="stylesheet">
+    <link href="https://wiscrm.com/assets/css/custom.css" rel="stylesheet" type='text/css'>
+        <!-- DO NOT REMOVE -->
+      <script>
+        if (typeof (jQuery) === 'undefined' && !window.deferAfterjQueryLoaded) {
+            window.deferAfterjQueryLoaded = [];
+            Object.defineProperty(window, "$", {
+                set: function (value) {
+                    window.setTimeout(function () {
+                        $.each(window.deferAfterjQueryLoaded, function (index, fn) {
+                            fn();
+                        });
+                    }, 0);
+                    Object.defineProperty(window, "$", {
+                        value: value
+                    });
+                },
+                configurable: true
+            });
+        }
+
+        var csrfData = {"formatted":{"csrf_token_name":"043432f56d4a08e3ae4d26d93b809aa0"},"token_name":"csrf_token_name","hash":"043432f56d4a08e3ae4d26d93b809aa0"};
+
+        if (typeof(jQuery) == 'undefined') {
+
+            window.deferAfterjQueryLoaded.push(function () {
+                csrf_jquery_ajax_setup();
+            });
+            window.addEventListener('load', function () {
+                csrf_jquery_ajax_setup();
+            }, true);
+        } else {
+            csrf_jquery_ajax_setup();
+        }
+
+        function csrf_jquery_ajax_setup() {
+            $.ajaxSetup({
+                data: csrfData.formatted
+            });
+        }
+    </script>
+        <script>
+        function custom_fields_hyperlink(){
+         var cf_hyperlink = $('body').find('.cf-hyperlink');
+         if(cf_hyperlink.length){
+             $.each(cf_hyperlink,function(){
+                var cfh_wrapper = $(this);
+                var cfh_field_to = cfh_wrapper.attr('data-fieldto');
+                var cfh_field_id = cfh_wrapper.attr('data-field-id');
+                var textEl = $('body').find('#custom_fields_'+cfh_field_to+'_'+cfh_field_id+'_popover');
+                var hiddenField = $("#custom_fields\\\["+cfh_field_to+"\\\]\\\["+cfh_field_id+"\\\]");
+                var cfh_value = cfh_wrapper.attr('data-value');
+                hiddenField.val(cfh_value);
+
+                if($(hiddenField.val()).html() != ''){
+                    textEl.html($(hiddenField.val()).html());
+                }
+                var cfh_field_name = cfh_wrapper.attr('data-field-name');
+                textEl.popover({
+                    html: true,
+                    trigger: "manual",
+                    placement: "top",
+                    title:cfh_field_name,
+                    content:function(){
+                        return $(cfh_popover_templates[cfh_field_id]).html();
+                    }
+                }).on("click", function(e){
+                    var $popup = $(this);
+                    $popup.popover("toggle");
+                    var titleField = $("#custom_fields_"+cfh_field_to+"_"+cfh_field_id+"_title");
+                    var urlField = $("#custom_fields_"+cfh_field_to+"_"+cfh_field_id+"_link");
+                    var ttl = $(hiddenField.val()).html();
+                    var cfUrl = $(hiddenField.val()).attr("href");
+                    if(cfUrl){
+                        $('#cf_hyperlink_open_'+cfh_field_id).attr('href',(cfUrl.indexOf('://') === -1 ? 'http://' + cfUrl : cfUrl));
+                    }
+                    titleField.val(ttl);
+                    urlField.val(cfUrl);
+                    $("#custom_fields_"+cfh_field_to+"_"+cfh_field_id+"_btn-save").click(function(){
+                        hiddenField.val((urlField.val() != '' ? '<a href="'+urlField.val()+'" target="_blank">' + titleField.val() + '</a>' : ''));
+                        textEl.html(titleField.val() == "" ? "Click here to add link" : titleField.val());
+                        $popup.popover("toggle");
+                    });
+                    $("#custom_fields_"+cfh_field_to+"_"+cfh_field_id+"_btn-cancel").click(function(){
+                        if(urlField.val() == ''){
+                            hiddenField.val('');
+                        }
+                        $popup.popover("toggle");
+                    });
+                });
+            });
+         }
+     }
+ </script>
+         <script>
+                  var site_url = 'https://wiscrm.com/';
+        // Settings required for javascript
+        var calendar_events_limit = "50";
+        var maximum_allowed_ticket_attachments = "4";
+
+        var max_php_ini_upload_size_bytes  = "67108864";
+        var file_exceeds_maxfile_size_in_form = "The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form" + ' (64 MB)';
+        var file_exceeds_max_filesize = "The uploaded file exceeds the upload_max_filesize directive in php.ini" + ' (64 MB)';
+
+        var validation_extension_not_allowed = "File extension not allowed";
+        var sign_document_validation = "Please sign the document.";
+        var dt_length_menu_all = "All";
+
+        var drop_files_here_to_upload = "Drop files here to upload";
+        var browser_not_support_drag_and_drop = "Your browser does not support drag'n'drop file uploads";
+        var remove_file = "Remove file";
+        var tables_pagination_limit = "25";
+        var date_format = "d-m-Y";
+        var time_format = "12";
+        var default_view_calendar = "basicDay";
+        var dt_lang = {"emptyTable":"No entries found","info":"Showing _START_ to _END_ of _TOTAL_ entries","infoEmpty":"Showing 0 to 0 of 0 entries","infoFiltered":"(filtered from _MAX_ total entries)","lengthMenu":"_MENU_","loadingRecords":"Loading...","processing":"<div class=\"dt-loader\"><\/div>","search":"<div class=\"input-group\"><span class=\"input-group-addon\"><span class=\"fa fa-search\"><\/span><\/span>","searchPlaceholder":"Search...","zeroRecords":"No matching records found","paginate":{"first":"First","last":"Last","next":"Next","previous":"Previous"},"aria":{"sortAscending":" activate to sort column ascending","sortDescending":" activate to sort column descending"}};
+        var discussions_lang = {"discussion_add_comment":"Add comment","discussion_newest":"Newest","discussion_oldest":"Oldest","discussion_attachments":"Attachments","discussion_send":"Send","discussion_reply":"Answer","discussion_edit":"Edit","discussion_edited":"Modified","discussion_you":"You","discussion_save":"Save","discussion_delete":"Delete","discussion_view_all_replies":"Show all replies","discussion_hide_replies":"Hide replies","discussion_no_comments":"No comments","discussion_no_attachments":"No attachments","discussion_attachments_drop":"Drag and drop to upload file"};
+        var confirm_action_prompt = "Are you sure you want to perform this action?";
+        var cf_translate_input_link_tip = "Click here to add link";
+        var cfh_popover_templates  = {};
+        var locale = 'en';
+        var timezone = "Asia/Dubai";
+        var allowed_files = ".png,.jpg,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt";
+        var isRTL = 'false';
+        var calendar_first_day = '0';
+        var months_json = '["January","February","March","April","May","June","July","August","September","October","November","December"]';
+        window.addEventListener('load',function(){
+            custom_fields_hyperlink();
+        });
+    </script>
+    </head>
+<body class="customers " >
+<nav class="navbar navbar-default">
+  <div class="container">
+    <!-- Brand and toggle get grouped for better mobile display -->
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a href="https://wiscrm.com/" class="navbar-brand logo img-responsive"><img src="https://wiscrm.com/uploads/company/logo.png" class="img-responsive" alt="Wisdom IT Solutions"></a>    </div>
+    <!-- Collect the nav links, forms, and other content for toggling -->
+    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <ul class="nav navbar-nav navbar-right">
+                        <li class="customers-nav-item-kb"><a href="https://wiscrm.com/knowledge-base">Knowledge Base</a></li>
+                                <li class="customers-nav-item-login"><a href="https://wiscrm.com/clients/login">Login</a></li>
+                        </ul>
+     </div>
+     <!-- /.navbar-collapse -->
+   </div>
+   <!-- /.container-fluid -->
+ </nav>
+<div id="wrapper">
+	<div id="content">
+		<div class="container">
+			<div class="row">
+							</div>
+		</div>
+					<div class="jumbotron kb-search-jumbotron">
+    <div class="kb-search">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-8 col-md-offset-2">
+                    <div class="text-center">
+                        <h2 class="mbot30 bold">Доставка по городу и области</h2>
+						<h3 class="tittle">Дрова для отопления</h3>
+<div class="col-xs-12 col-md-12">
+<h4 class="description">Березовые дрова</h4>
+<p>Березовые дрова - самый выгодный (в сочетании цена - тепло) и популярный вид топлива для печей, каминов, бань. Они меньше засоряют дымоход, в сравнении с хвойными породами, и создают больше тепла, в сравнении с осиной или ольхой. Именно эти дрова создают неповторимый комфорт в доме, здоровый жар в бане и успокаивающе потрескивают при горении, заставляя расслабиться и отдохнуть в тепле. Основным достоинством березовых дров является теплотворность или удельная теплота сгорания.Это качество, позволяет быстро нагревать помещение, использовать при этом меньшее количество топлива. У березы есть и минусы, она довольно сильно коптит из за наличия смолистых веществ в берёсте. Копоть имеет маслянистую структуру и оставляет на стенках печных труб плотный слой сажи. Для устранения сажи рекомендуют протапливать печь минимум два раза в год осиной по 1 м<sup>3</sup>, которая имеет низкую зольность. При горении образуется меньше сажи и углей, а скопившийся на стенках деготь разъедается и выносится со всеми газами наружу. Поэтому при топке осиной можно наблюдать черный дым из трубы.</p>
+<h4 class="description">Хвойные дрова</h4>
+<p>Хвойные дрова - самый дешевый вариант для отопления зданий. Хвойные деревья относят к мягким породам, их древесина имеет неплотную структуру и, поэтому, теплотворная способность хвойных дров меньше. Например, теплотворная способность сосновых дров меньше березовых на 20% (при одинаковой влажности). Как и береза, они дают много жара, только сгорают значительно быстрее. Такие дрова хорошо подходят когда необходимо быстро прогреть помещение, а также удобны для розжига торфа или каменного угля. Хвойные дрова искрят и, поэтому, оставлять без присмотра открытое пламя нельзя. Как и береза, хвойные дрова оставляют сажу на стенках печных труб и для ее устранения рекомендуется периодически протапливать осиной.</p>
+</div>
+                        <form action="https://wiscrm.com/knowledge-base/search" method="GET" accept-charset="utf-8">
+                        <div class="form-group has-feedback has-feedback-left">
+                          <div class="input-group">
+                            <input type="search" name="q" placeholder="Have a question?" class="form-control" value="">
+                            <span class="input-group-btn">
+                                <button type="submit" class="btn btn-success">Search</button>
+                            </span>
+                            <i class="glyphicon glyphicon-search form-control-feedback"></i>
+                        </div>
+                    </div>
+                    </form>                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+				<div class="container">
+			<div class="row">
+								<div class="panel_s">
+	<div class="panel-body">
+				<p class="no-margin">No knowledge base articles found</p>
+					</div>
+</div>
+			</div>
+		</div>
+	</div>
+	<div class="pusher"></div>
+<footer class="navbar-fixed-bottom">
+	<div class="container">
+		<div class="row">
+			<div class="col-md-12 text-center">
+				2022 Copyright Wisdom IT Solutions                                			</div>
+		</div>
+	</div>
+</footer>
+<script src="https://wiscrm.com/assets/plugins/bootstrap/js/bootstrap.min.js"></script>
+<script src="https://wiscrm.com/assets/plugins/datatables/datatables.min.js"></script>
+<script src='https://wiscrm.com/assets/plugins/jquery-validation/jquery.validate.min.js?v=2.0.1'></script>
+<script src='https://wiscrm.com/assets/plugins/app-build/bootstrap-select.min.js?v=2.0.1'></script>
+<script src="https://wiscrm.com/assets/plugins/datetimepicker/jquery.datetimepicker.full.min.js"></script>
+<script src="https://wiscrm.com/assets/plugins/Chart.js/Chart.min.js" type="text/javascript"></script>
+<script src="https://wiscrm.com/assets/plugins/bootstrap-colorpicker/js/bootstrap-colorpicker.min.js"></script>
+<script src="https://wiscrm.com/assets/themes/perfex/js/global.min.js?v=2.0.1"></script>
+<script src="https://wiscrm.com/assets/plugins/lightbox/js/lightbox.min.js"></script>
+</div>
+</body>
+</html>

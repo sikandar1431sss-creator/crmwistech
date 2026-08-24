@@ -1,0 +1,427 @@
+<?php ob_start();
+defined('BASEPATH') or exit('No direct script access allowed');
+
+class Sync_invoices extends Admin_controller
+{
+    /**
+     * Sync_invoices constructor.
+     */
+    public function __construct()
+    {
+        ob_start();
+        parent::__construct();
+        $this->load->model('receipts_model');
+        $this->load->model('invoices_model');
+        $this->load->model('payments_model');
+        $this->load->model('clients_model');
+        $this->load->model('staff_model');
+        $this->load->model('currencies_model');
+        $this->load->model('projects_model');
+        $this->load->helper('url');
+        $this->load->model('cashadvance_model');
+        $this->load->model('leads_model');
+        $this->load->helper(array('form', 'url'));
+        $this->load->library('form_validation');
+        $this->load->model('customnotes_model');
+        $this->load->library('zohoBooks');
+    }
+
+
+    /* Get all invoices in case user go on index page */
+    public function index()
+    {
+        $where = [];
+
+        if ($this->input->post()) {
+            if ($this->input->post('noteType')) {
+                $where['cn_type'] = $this->input->post('noteType');
+            }
+
+            if ($this->input->post('notePosition')) {
+                $where['cn_position'] = $this->input->post('notePosition');
+            }
+        }
+
+        $data['cus_notes'] = $this->customnotes_model->get('', $where);
+        $this->load->view('admin/custom_notes/list_notes', $data);
+    }
+
+    /* Get all invoices in case user go on index page */
+    public function create()
+    {
+        $this->load->library('form_validation');
+        $data['staff'] = $this->staff_model->get('', 1);
+
+        if ($this->input->post()) {
+            $errors = [];
+            $res_data = "";
+            // pre_array($this->input->post());
+
+            $this->form_validation->set_rules('from_date', 'From Date', 'required|trim');
+            $this->form_validation->set_rules('to_date', 'To Date', 'required');
+
+            // pre_array($this->input->post());
+            if ($this->form_validation->run() == FALSE) {
+
+                // $this->load->view('admin/custom_notes/create', $data);
+                $errors = "<div class='alert alert-danger'>" . validation_errors() . "</div>";
+
+                //$errors['response'] = validation_errors();
+                print_r($errors);
+                //echo json_encode($errors);
+                return;
+
+            } elseif ($this->input->post('from_date') > $this->input->post('to_date')) {
+                $errors = "<div class='alert alert-danger'>Start date should be less than end date</div>";
+                print_r(($errors));
+                // echo json_encode($errors);
+                return;
+            } else {
+
+                // find invoice for given dates
+                $where['date >='] = date("Y-m-d", strtotime($this->input->post('from_date')));
+                $where['date <='] = date("Y-m-d", strtotime($this->input->post('to_date')));
+
+                $invoices = $this->invoices_model->get('', $where);
+
+                // Initialize Zoho API Class
+                $zb = new ZohoBooks();
+
+                if ($invoices <> null && count($invoices) > 0) {
+
+
+                    foreach ($invoices as $invoice) {
+
+                        if (empty($invoice['zoho_id'])) {
+
+                            // Step 1: get or create client/customer in CRM
+                            $client_id = "";
+                            $client = $this->clients_model->get($invoice['clientid']);
+
+                            if ($client <> null) {
+                                if (!empty($client->vat)) {
+                                    $invoice['vat_reg_no'] = $client->vat;
+                                    $invoice['vat_treatment'] = "vat_registered";
+                                } else {
+                                    $invoice['vat_reg_no'] = $client->vat;
+                                    $invoice['vat_treatment'] = "vat_not_registered";
+                                }
+
+                                if (!empty($client->zoho_id)) {
+                                    $client_id = $invoice['clientid'] = $client->zoho_id;
+                                } else {
+                                    $client_id = $client->userid;
+                                }
+                            }
+
+                            $customer = json_decode($zb->getContact($client_id));
+
+                            if ($customer == null || empty($customer)) {
+
+                                $contact = $this->createContactData($invoice['clientid']);
+
+                                if (!empty($contact) && count($contact) > 0 && $contact <> null) {
+
+                                    $contact = $zb->postContact(json_encode($contact));
+                                    $result = json_decode($contact);
+
+                                    if ($result <> null) {
+                                        if ($result->code == 0) {
+                                            $contact_id_zoho = $result->contact->contact_id;
+                                            $this->clients_model->updateZohoId($client_id, $contact_id_zoho);
+                                            $invoice['clientid'] = $contact_id_zoho;
+                                        } else {
+                                            $client = $this->clients_model->get($invoice['clientid']);
+
+                                            if ($client <> null && !empty($client)) {
+                                                $invoice['clientid'] = $client->zoho_id;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            $invoiceJson = json_encode($this->invoiceJson($invoice));
+                            $invoice_data = json_decode($zb->postInvoice($invoiceJson));
+
+                            if (!empty($invoice_data) && $invoice_data <> null) {
+
+                                if (isset($invoice_data->code)) {
+
+                                    if ($invoice_data->code == 0) {
+                                        $this->db->where('id', $invoice['id']);
+                                        $this->db->update('tblitems_in', array('zoho_id' => $invoice_data->invoice->invoice_id));
+                                    }
+
+                                    $res_data .= "<div class='alert alert-danger'>";
+                                    $res_data .= " Code:" . $invoice_data->code;
+                                    $res_data .= " Message:" . $invoice_data->message;
+                                    $res_data .= " Invoice Number:" . strip_tags($invoice['prefix'] . $invoice['number']);
+                                    $res_data .= "</div>";
+
+                                    $errors[]['code'] = $invoice_data->code;
+                                    $errors[]['message'] = $invoice_data->message;
+                                    $errors[]['invoice_id'] = strip_tags($invoice['prefix'] . $invoice['number']);
+                                }
+                            }
+                        }
+
+                        sleep(5);
+                    }
+                }else{
+                    $res_data .= "<div class='alert alert-danger'>";
+                    $res_data .= "No Invoice Found!";
+                    $res_data .= "</div>";
+
+                }
+                print_r($res_data);
+                return;
+                // $this->load->view('admin/sync_invoices/create', $data);
+            }
+        }
+
+        $this->load->view('admin/sync_invoices/create', $data);
+    }
+
+    /**
+     * @param $invoice_data
+     * @return array
+     */
+    protected function invoiceJson($invoice_data)
+    {
+
+        $items = $this->invoices_model->get_invoice_items($invoice_data['id']);
+
+        $line_items = [];
+        $i = 0;
+        if ($items <> null && count($items) > 0) {
+
+            foreach ($items as $item) {
+
+                if ($item['zoho_id'] == "") {
+                    $item_id_zoho = $this->getZohoItemId($item);
+                } else {
+                    $item_id_zoho = $item['zoho_id'];
+                }
+
+                $line_items[$i] = [
+                    "item_id" => $item_id_zoho,
+                    "project_id" => "",
+                    "name" => strip_tags($item['description']),
+                    "description" => strip_tags($item['long_description']),
+                    "item_order" => strip_tags($item['item_order']),
+                    "bcy_rate" => strip_tags($item['rate']),
+                    "rate" => strip_tags($item['rate']),
+                    "quantity" => strip_tags($item['qty']),
+                    "unit" => strip_tags($item['unit']),
+                    "discount_amount" => strip_tags($item['discount']),
+                    "discount" => strip_tags($item['discount'])
+                ];
+
+                // get Item Tax
+                $item_taxes = get_invoice_item_taxes($item['id']);
+
+                if (count($item_taxes) > 0) {
+                    foreach ($item_taxes as $taxes) {
+
+                        if (strpos($taxes['taxname'], 'VAT|5.00') !== false) {
+                            $line_items[$i]['tax_id'] = get_option('zoho_vat_id');
+                            $line_items[$i]['tax_name'] = "VAT";
+                            $line_items[$i]['tax_type'] = "tax";
+                            $line_items[$i]['tax_percentage'] = $taxes['taxrate'];
+                            /*
+                             *
+                             * $line_items[$i]['vat_treatment'] = $invoice_data['vat_reg_no'];
+                             * $line_items[$i]['tax_treatment'] = $invoice_data['vat_treatment'];
+                             *
+                             *
+                             * */
+                        }
+                    }
+                }
+                $i++;
+            }
+        }
+
+        if (count($invoice_data) > 0) {
+
+            $sales_agent_name = "";
+            $staff = $this->staff_model->get($invoice_data['sale_agent']);
+
+            if ($staff != "" && $staff <> null) {
+
+                $sales_agent_name = "";
+
+                if ($staff->firstname <> null) {
+                    $sales_agent_name = $staff->firstname;
+                }
+
+                if ($staff->lastname <> null) {
+                    $sales_agent_name .= " " . $staff->lastname;
+                }
+            }
+
+            $invoice = [
+
+                "customer_id" => $invoice_data['clientid'],
+                "invoice_number" => strip_tags($invoice_data['prefix'] . $invoice_data['number']),
+                "reference_number" => $invoice_data['id'],
+                "date" => $invoice_data['date'],
+                "due_date" => $invoice_data['duedate'],
+                "discount" => $invoice_data['discount_total'],
+                "is_discount_before_tax" => ($invoice_data['discount_calculation'] == "before_tax") ? true : false,
+                "discount_type" => "entity_level",
+                "is_inclusive_tax" => false,
+                "salesperson_name" => $sales_agent_name,
+                "project_id" => $invoice_data['project_id'],
+                "custom_body" => " ",
+                "custom_subject" => " ",
+                "notes" => strip_tags($invoice_data['clientnote']),
+                "terms" => strip_tags($invoice_data['terms']),
+                "shipping_charge" => 0,
+                "adjustment" => 0,
+                "adjustment_description" => " ",
+                "reason" => " ",
+                "expense_id" => " ",
+                "tax_treatment" => $invoice_data['vat_treatment'],
+                "line_items" => $line_items
+
+            ];
+        }
+
+        return $invoice;
+
+    }
+
+    /**
+     * @param $item
+     * @return mixed
+     */
+    public function getZohoItemId($item)
+    {
+        if (count($item) > 0) {
+
+            $data = [
+                "name" => strip_tags($item['id']) . "-" . $item['description'],
+                "rate" => $item['rate'],
+                "description" => strip_tags($item['long_description']),
+                "sku" => strip_tags($item['id']),
+            ];
+
+            $zb = new ZohoBooks();
+            $do_item = json_decode($zb->postItems(json_encode($data)));
+
+            if (!empty($do_item) && count($do_item) > 0 && $do_item <> null) {
+                if ($do_item->code == 0) {
+
+                    $item_id = $do_item->item->item_id;
+                    //### update zoho Id
+                    $this->db->where('id', $item['id']);
+                    $this->db->update('tblitems_in', array('zoho_id' => $item_id));
+
+                    return $item_id;
+                }
+
+            }
+        }
+
+    }
+
+    /**
+     * @param $client_id
+     * @return array
+     */
+    protected function createContactData($client_id)
+    {
+
+        $client = $this->clients_model->get($client_id);
+        $contact = [];
+
+        if ($client <> null && !empty($client)) {
+
+            $client_contacts = $this->clients_model->get_contacts($client_id);
+
+            $primary_first_name = "";
+            $primary_last_name = "";
+            $primary_email = "";
+            $tax_treatment = "vat_not_registered";
+
+            $contacts = [];
+
+            if (count($client_contacts) > 0) {
+
+                foreach ($client_contacts as $contact) {
+
+                    if ($contact['is_primary']) {
+                        $primary_first_name = $contact['firstname'];
+                        $primary_last_name = $contact['lastname'];
+                        $primary_email = $contact['email'];
+                    }
+
+                    $contacts[] = [
+
+                        "salutation" => $contact["title"],
+                        "first_name" => $contact['firstname'],
+                        "last_name" => $contact['lastname'],
+                        "email" => $contact['email'],
+                        "phone" => $contact['phonenumber'],
+                        "mobile" => $contact['email'],
+                        "designation" => $contact["title"],
+                        "department" => "",
+                        "skype" => "",
+                        "is_primary_contact" => ($contact['is_primary']) ? true : false,
+                        "enable_portal" => ($contact['is_primary']) ? true : false
+                    ];
+                }
+            }
+
+            if (!empty($client->vat)) {
+                $tax_treatment = "vat_registered";
+            }
+
+            $contact = [
+
+                "contact_name" => $client->company,
+                "company_name" => $client->company,
+                "first_name" => $primary_first_name,
+                "last_name" => $primary_last_name,
+                "email" => $primary_email,
+                "phone" => $client->phonenumber,
+                "facebook" => "",
+                "twitter" => "",
+                "tax_reg_no" => $client->vat,
+                "tax_treatment" => $tax_treatment,
+                "billing_address" => [
+                    "attention" => $client->company,
+                    "address" => $client->address,
+                    "street2" => "",
+                    "state_code" => "",
+                    "city" => $client->city,
+                    "state" => $client->state,
+                    "zip" => $client->zip,
+                    "country" => (get_country($client->country) <> null) ? get_country($client->country)->long_name : "",
+                    "fax" => $client->phonenumber,
+                    "phone" => $client->phonenumber
+                ],
+                "shipping_address" => [
+                    "attention" => $client->company,
+                    "address" => $client->address,
+                    "street2" => "",
+                    "state_code" => "",
+                    "city" => $client->city,
+                    "state" => $client->state,
+                    "zip" => $client->zip,
+                    "country" => (get_country($client->country) <> null) ? get_country($client->country)->long_name : "",
+                    "fax" => $client->phonenumber,
+                    "phone" => $client->phonenumber
+                ],
+                "contact_persons" => $contacts
+            ];
+
+        }
+
+        return $contact;
+    }
+}
+
+

@@ -1,0 +1,93 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+
+ERROR - 2026-04-09 10:09:58 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 10:09:58 --> Could not find the language line "in"
+ERROR - 2026-04-09 10:09:58 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 10:09:58 --> Could not find the language line ""
+ERROR - 2026-04-09 10:26:35 --> Could not find the language line "num_word_AED"
+ERROR - 2026-04-09 10:26:49 --> Could not find the language line "num_word_AED"
+ERROR - 2026-04-09 11:18:10 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 11:18:10 --> Could not find the language line "in"
+ERROR - 2026-04-09 11:18:10 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 11:18:10 --> Could not find the language line ""
+ERROR - 2026-04-09 11:33:52 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 11:33:52 --> Could not find the language line "in"
+ERROR - 2026-04-09 11:33:52 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 11:33:52 --> Could not find the language line ""
+ERROR - 2026-04-09 11:35:59 --> Could not find the language line "Posted"
+ERROR - 2026-04-09 11:35:59 --> Could not find the language line "Not Posted"
+ERROR - 2026-04-09 11:37:49 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 11:37:49 --> Could not find the language line "in"
+ERROR - 2026-04-09 11:37:49 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 11:37:49 --> Could not find the language line ""
+ERROR - 2026-04-09 11:39:35 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 11:39:35 --> Could not find the language line "in"
+ERROR - 2026-04-09 11:39:35 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 11:39:35 --> Could not find the language line ""
+ERROR - 2026-04-09 11:39:46 --> Could not find the language line "Posted"
+ERROR - 2026-04-09 11:39:46 --> Could not find the language line "Not Posted"
+ERROR - 2026-04-09 11:40:09 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 11:40:12 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 11:42:47 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 11:42:49 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 11:45:11 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 11:45:11 --> Could not find the language line "in"
+ERROR - 2026-04-09 11:45:11 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 11:45:11 --> Could not find the language line ""
+ERROR - 2026-04-09 11:45:17 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 11:45:17 --> Could not find the language line "in"
+ERROR - 2026-04-09 11:45:17 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 11:45:17 --> Could not find the language line ""
+ERROR - 2026-04-09 11:45:44 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 11:55:09 --> 404 Page Not Found: 
+ERROR - 2026-04-09 12:11:55 --> Could not find the language line "Posted"
+ERROR - 2026-04-09 12:11:55 --> Could not find the language line "Not Posted"
+ERROR - 2026-04-09 12:20:05 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 12:20:15 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 12:54:59 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 12:54:59 --> Could not find the language line "in"
+ERROR - 2026-04-09 12:54:59 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 12:54:59 --> Could not find the language line ""
+ERROR - 2026-04-09 13:09:34 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 13:09:34 --> Could not find the language line "in"
+ERROR - 2026-04-09 13:09:34 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 13:09:34 --> Could not find the language line ""
+ERROR - 2026-04-09 13:09:53 --> Could not find the language line "Posted"
+ERROR - 2026-04-09 13:09:53 --> Could not find the language line "Not Posted"
+ERROR - 2026-04-09 13:19:41 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 13:24:14 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 15:40:46 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 15:40:46 --> Could not find the language line "in"
+ERROR - 2026-04-09 15:40:46 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 15:40:46 --> Could not find the language line ""
+ERROR - 2026-04-09 16:12:30 --> Could not find the language line "Renewable"
+ERROR - 2026-04-09 16:12:30 --> Could not find the language line "From"
+ERROR - 2026-04-09 16:12:30 --> Could not find the language line "To"
+ERROR - 2026-04-09 16:12:32 --> Severity: Notice --> Trying to get property of non-object /home/wiscrmcom/public_html/application/models/Invoices_model.php 790
+ERROR - 2026-04-09 16:12:32 --> Severity: Notice --> Trying to get property of non-object /home/wiscrmcom/public_html/application/models/Invoices_model.php 790
+ERROR - 2026-04-09 16:12:32 --> Severity: Notice --> Trying to get property of non-object /home/wiscrmcom/public_html/application/models/Invoices_model.php 790
+ERROR - 2026-04-09 16:12:56 --> Severity: Warning --> Illegal string offset 'cc' /home/wiscrmcom/public_html/application/models/Invoices_model.php 703
+ERROR - 2026-04-09 16:12:56 --> Severity: Notice --> Uninitialized string offset: 0 /home/wiscrmcom/public_html/application/models/Invoices_model.php 703
+ERROR - 2026-04-09 16:12:56 --> Severity: Notice --> Undefined index: email_template_custom /home/wiscrmcom/public_html/application/models/Invoices_model.php 1865
+ERROR - 2026-04-09 16:13:02 --> Could not find the language line "Posted"
+ERROR - 2026-04-09 16:13:02 --> Could not find the language line "Not Posted"
+ERROR - 2026-04-09 16:13:27 --> Severity: Notice --> Undefined index: email_template_custom /home/wiscrmcom/public_html/application/models/Invoices_model.php 1865
+ERROR - 2026-04-09 16:13:33 --> Could not find the language line "Posted"
+ERROR - 2026-04-09 16:13:33 --> Could not find the language line "Not Posted"
+ERROR - 2026-04-09 16:15:35 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 16:15:35 --> Could not find the language line "in"
+ERROR - 2026-04-09 16:15:35 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 16:15:35 --> Could not find the language line ""
+ERROR - 2026-04-09 16:16:39 --> Could not find the language line "Manage Renewals"
+ERROR - 2026-04-09 16:16:39 --> Could not find the language line "in"
+ERROR - 2026-04-09 16:16:39 --> Could not find the language line "Duration"
+ERROR - 2026-04-09 16:16:39 --> Could not find the language line ""
+ERROR - 2026-04-09 13:29:27 --> 404 Page Not Found: Wp-loginphp/index
+ERROR - 2026-04-09 17:56:27 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 17:56:40 --> Could not find the language line "num_word_UAE DIRHAM"
+ERROR - 2026-04-09 19:21:49 --> 404 Page Not Found: Wordpress/index
+ERROR - 2026-04-09 19:21:49 --> 404 Page Not Found: Blog/index
+ERROR - 2026-04-09 19:21:49 --> 404 Page Not Found: Old/index
+ERROR - 2026-04-09 19:21:49 --> 404 Page Not Found: Wp/index
+ERROR - 2026-04-09 20:36:57 --> 404 Page Not Found: Sitemapxml/index
+ERROR - 2026-04-09 21:45:43 --> 404 Page Not Found: Sitemapxml/index

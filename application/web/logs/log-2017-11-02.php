@@ -1,0 +1,5 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+
+ERROR - 2017-11-02 16:13:33 --> Query error: Unknown column 'customNote' in 'field list' - Invalid query: UPDATE `tblinvoices` SET `clientid` = '1354', `billing_street` = '', `billing_city` = '', `billing_state` = '', `billing_zip` = '', `billing_country` = '', `show_shipping_on_invoice` = 1, `shipping_street` = NULL, `shipping_city` = NULL, `shipping_state` = NULL, `shipping_zip` = NULL, `shipping_country` = NULL, `number` = '001562', `date` = '2017-10-21', `duedate` = '2017-11-20', `allowed_payment_modes` = 'a:1:{i:0;s:1:\"1\";}', `currency` = '1', `sale_agent` = '1', `recurring` = '0', `discount_type` = '', `recurring_ends_on` = NULL, `adminnote` = '', `show_quantity_as` = '1', `subtotal` = '19500.00', `discount_percent` = '0', `discount_total` = '0', `adjustment` = '0.00', `total` = '19500.00', `clientnote` = '', `terms` = '', `customNote` = '', `project_id` = 0, `cancel_overdue_reminders` = 0, `recurring_type` = NULL, `custom_recurring` = 0, `include_shipping` = 0
+WHERE `id` = '1578'
+ERROR - 2017-11-02 12:13:34 --> 404 Page Not Found: Faviconico/index
