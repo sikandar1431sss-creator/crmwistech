@@ -762,6 +762,7 @@ function get_receipt_deposit_bank_options($selected = '', $currency = '')
     $options = '';
     $banks = get_receipt_deposit_banks(false, $currency);
     $selected_found = false;
+    $currency_code = get_receipt_currency_code($currency);
 
     foreach ($banks as $bank) {
         $is_selected = ($selected === $bank['code']) ? ' selected' : '';
@@ -773,14 +774,16 @@ function get_receipt_deposit_bank_options($selected = '', $currency = '')
 
     if ($selected !== '' && !$selected_found) {
         foreach (get_receipt_deposit_banks(true) as $bank) {
-            if ($selected === $bank['code']) {
+            $bank_currency_code = !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '';
+            if ($selected === $bank['code'] && ($currency_code === '' || $bank_currency_code === '' || $bank_currency_code === $currency_code)) {
                 $options .= '<option value="' . html_escape($bank['code']) . '" selected>' . html_escape(get_receipt_deposit_bank_label($bank)) . '</option>';
                 break;
             }
         }
 
         foreach (get_receipt_legacy_deposit_banks(true) as $bank) {
-            if ($selected === $bank['code']) {
+            $bank_currency_code = !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '';
+            if ($selected === $bank['code'] && ($currency_code === '' || $bank_currency_code === '' || $bank_currency_code === $currency_code)) {
                 $options .= '<option value="' . html_escape($bank['code']) . '" selected>' . html_escape(get_receipt_deposit_bank_label($bank)) . '</option>';
                 break;
             }

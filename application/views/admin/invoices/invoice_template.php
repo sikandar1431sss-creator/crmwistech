@@ -299,9 +299,10 @@
                                 data-currency-code="<?php echo html_escape($bank_account['currency_code']); ?>"<?php echo $selected; ?>>
                            <?php echo html_escape($bank_label . ' (' . $bank_account['currency_code'] . ')'); ?>
                         </option>
-                     <?php } ?>
-                  </select>
-               </div>
+	                     <?php } ?>
+	                  </select>
+	                  <p id="invoice_bank_currency_error" class="text-danger mtop5" style="display:none;"></p>
+	               </div>
 
                <div class="checkbox checkbox-primary">
                   <input type="checkbox"

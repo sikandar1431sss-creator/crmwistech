@@ -268,25 +268,42 @@ $csrf = array(
 	            $("#amount_total").text('0');
 	        }
 
-        function getReceiptDepositBankOptions(selected) {
-            var bankOptions = '';
-            var found = false;
+		        function getReceiptDepositBanksForCurrency() {
+		            var receiptCurrencyCode = getReceiptCurrencyCode();
+		            var banks = [];
 
-            $.each(receiptDepositBanks, function (_, bank) {
-                var selectedAttr = selected && selected === bank.code ? ' selected' : '';
-                if (selectedAttr) {
-                    found = true;
-                }
-                bankOptions += '<option value="' + $('<div>').text(bank.code).html() + '"' + selectedAttr + '>' + $('<div>').text(receiptDepositBankLabel(bank)).html() + '</option>';
-            });
+		            $.each(receiptDepositBanks, function (_, bank) {
+		                var bankCurrencyCode = $.trim(bank.currency_code || '').toUpperCase();
 
-            if (!bankOptions) {
-                return '<option value="">No bank accounts available</option>';
-            } else if (selected && !found) {
-                $.each(receiptDepositBanks, function (_, bank) {
-                    if (bank.code === selected) {
-                        bankOptions += '<option value="' + $('<div>').text(bank.code).html() + '" selected>' + $('<div>').text(receiptDepositBankLabel(bank)).html() + '</option>';
-                        return false;
+		                if (receiptCurrencyCode && bankCurrencyCode && bankCurrencyCode === receiptCurrencyCode) {
+		                    banks.push(bank);
+		                }
+		            });
+
+		            return banks;
+		        }
+
+	        function getReceiptDepositBankOptions(selected) {
+	            var bankOptions = '';
+	            var found = false;
+		            var banks = getReceiptDepositBanksForCurrency();
+		            var receiptCurrencyCode = getReceiptCurrencyCode();
+
+		            $.each(banks, function (_, bank) {
+	                var selectedAttr = selected && selected === bank.code ? ' selected' : '';
+	                if (selectedAttr) {
+	                    found = true;
+	                }
+	                bankOptions += '<option value="' + $('<div>').text(bank.code).html() + '"' + selectedAttr + '>' + $('<div>').text(receiptDepositBankLabel(bank)).html() + '</option>';
+	            });
+
+	            if (!bankOptions) {
+		                return '<option value="">No bank account added for ' + $('<div>').text(receiptCurrencyCode || 'selected').html() + ' currency</option>';
+	            } else if (selected && !found) {
+		                $.each(banks, function (_, bank) {
+	                    if (bank.code === selected) {
+	                        bankOptions += '<option value="' + $('<div>').text(bank.code).html() + '" selected>' + $('<div>').text(receiptDepositBankLabel(bank)).html() + '</option>';
+	                        return false;
                     }
                 });
             }
@@ -398,15 +415,20 @@ $csrf = array(
             }
         }
 
-        function refreshDepositBanksForCurrency() {
-            var type = $("#receipt_type").val();
+	        function refreshDepositBanksForCurrency() {
+	            var type = $("#receipt_type").val();
 
-            if (type != 'Cash' && type != 'Stripe') {
-                $("#bank_dropdown").html(buildDepositBankHtml($("#deposit_to").val()));
-                refreshReceiptBankCurrencyValidation(receiptFormReady);
-            } else {
-                $("#savePayments").prop('disabled', false);
-            }
+	            if (type != 'Cash' && type != 'Stripe') {
+	                $("#bank_dropdown").html(buildDepositBankHtml($("#deposit_to").val()));
+		                if (getReceiptDepositBanksForCurrency().length === 0) {
+		                    $("#receipt_bank_currency_error").text('No bank account added for ' + (getReceiptCurrencyCode() || 'selected') + ' currency.').show();
+		                    $("#savePayments").prop('disabled', true);
+		                } else {
+		                    refreshReceiptBankCurrencyValidation(receiptFormReady);
+		                }
+	            } else {
+	                $("#savePayments").prop('disabled', false);
+	            }
         }
 
         function enforceCustomerCurrency(callback) {
@@ -577,15 +599,14 @@ $csrf = array(
             } else {
                 $("#cheque_date").html("");
             }
-            if(type == 'Cash' || type == 'Stripe'){
-                $("#bank_dropdown").html('');
-                $("#savePayments").prop('disabled', false);
-            }else{
-                $("#bank_dropdown").html(buildDepositBankHtml($("#deposit_to").val()));
-                refreshReceiptBankCurrencyValidation(receiptFormReady);
+	            if(type == 'Cash' || type == 'Stripe'){
+	                $("#bank_dropdown").html('');
+	                $("#savePayments").prop('disabled', false);
+	            }else{
+	                refreshDepositBanksForCurrency();
 
 
-              /*  $("#savePayments").click(function (e) {
+	              /*  $("#savePayments").click(function (e) {
                     e.preventDefault();
 
                         var deposit_to = $(".deposit_to").val();

@@ -417,9 +417,10 @@ if ((isset($invoice))) {
                                         data-currency-code="<?php echo html_escape($bank_account['currency_code']); ?>"<?php echo $selected; ?>>
                                     <?php echo html_escape($bank_label . ' (' . $bank_account['currency_code'] . ')'); ?>
                                 </option>
-                            <?php } ?>
-                        </select>
-                    </div>
+	                            <?php } ?>
+	                        </select>
+	                        <p id="invoice_bank_currency_error" class="text-danger mtop5" style="display:none;"></p>
+	                    </div>
 
                     <div class="checkbox checkbox-primary">
                         <input type="checkbox"
@@ -1115,9 +1116,11 @@ if ((isset($invoice))) {
 
 <a href="#" id="modalBox" data-toggle="modal" data-target="#myModal" class="hidden"></a>
 
-	<script>
-	    $(function () {
-	        function normalizeCurrencyDisplay(value) {
+		<script>
+		    $(function () {
+		        var invoiceBankOptions = $('#bank_account_id option').clone();
+
+		        function normalizeCurrencyDisplay(value) {
 	            value = $('<textarea/>').html((value || '').toString()).text();
 	            value = $.trim(value).replace(/\s+/g, ' ').toUpperCase();
 
@@ -1162,25 +1165,81 @@ if ((isset($invoice))) {
 	            return match ? match[0] : value;
 	        }
 
-	        function updateCurrencyDisplay() {
-	            var $currency = $('select[name="currency"]');
-	            var $display = $('#client_currency_display');
+		        function updateCurrencyDisplay() {
+		            var $currency = $('select[name="currency"]');
+		            var $display = $('#client_currency_display');
 
 	            if (!$currency.length || !$display.length) {
 	                return;
 	            }
 
-	            $display.val(normalizeCurrencyDisplay($currency.attr('data-current-code') || $currency.find('option:selected').text()));
-	        }
+		            $display.val(normalizeCurrencyDisplay($currency.attr('data-current-code') || $currency.find('option:selected').text()));
+		        }
+
+		        function refreshInvoiceBanksForCurrency() {
+		            var $bank = $('#bank_account_id');
+		            var $currency = $('select[name="currency"]');
+		            var selectedCurrencyId = $currency.val();
+		            var selectedCurrencyCode = normalizeCurrencyDisplay($currency.attr('data-current-code') || $currency.find('option:selected').text());
+		            var selectedBank = $bank.val();
+		            var matches = [];
+		            var $error = $('#invoice_bank_currency_error');
+
+		            if (!$bank.length || !$currency.length || !invoiceBankOptions.length || !selectedCurrencyId) {
+		                return;
+		            }
+
+		            invoiceBankOptions.each(function () {
+		                var $option = $(this);
+		                var value = $option.attr('value') || '';
+
+		                if (value === '') {
+		                    return;
+		                }
+
+		                var bankCurrencyId = $option.attr('data-currency-id') || '';
+		                var bankCurrencyCode = normalizeCurrencyDisplay($option.attr('data-currency-code') || '');
+
+		                if (
+		                    (bankCurrencyId && parseInt(bankCurrencyId, 10) === parseInt(selectedCurrencyId, 10))
+		                    || (bankCurrencyCode && selectedCurrencyCode && bankCurrencyCode === selectedCurrencyCode)
+		                ) {
+		                    matches.push($option.clone());
+		                }
+		            });
+
+		            $bank.empty().append($('<option value="">Select bank account</option>'));
+
+		            if (matches.length) {
+		                $.each(matches, function (_, $option) {
+		                    $bank.append($option);
+		                });
+		                $error.hide().text('');
+		            } else {
+		                $bank.append($('<option value=""></option>').text('No bank account added for ' + (selectedCurrencyCode || 'selected') + ' currency'));
+		                $error.text('No bank account added for ' + (selectedCurrencyCode || 'selected') + ' currency.').show();
+		            }
+
+		            if (selectedBank && $bank.find('option[value="' + selectedBank + '"]').length) {
+		                $bank.val(selectedBank);
+		            } else {
+		                $bank.val('');
+		            }
+
+		            if ($bank.data('selectpicker')) {
+		                $bank.selectpicker('refresh');
+		            }
+		        }
 
 	        function applyCustomerCurrency() {
 	            var customerId = $('#clientid').val();
 	            var $currency = $('select[name="currency"]');
 
-	            if (!customerId || !$currency.length) {
-	                updateCurrencyDisplay();
-	                return;
-	            }
+		            if (!customerId || !$currency.length) {
+		                updateCurrencyDisplay();
+		                refreshInvoiceBanksForCurrency();
+		                return;
+		            }
 
 	            $.getJSON(admin_url + 'invoices/client_change_data/' + customerId, function (response) {
 	                var currencyId = response && response.client_currency ? response.client_currency : $currency.attr('data-base');
@@ -1199,8 +1258,9 @@ if ((isset($invoice))) {
 	                    $currency.val(currencyId);
 	                }
 
-	                updateCurrencyDisplay();
-	                $currency.trigger('change');
+		                updateCurrencyDisplay();
+		                refreshInvoiceBanksForCurrency();
+		                $currency.trigger('change');
 
 	                if (typeof init_currency_symbol === 'function') {
 	                    init_currency_symbol();
@@ -1218,9 +1278,10 @@ if ((isset($invoice))) {
 	        $('body').on('changed.bs.select change', '#clientid', function () {
 	            applyCustomerCurrency();
 	        });
-	        $('body').on('changed.bs.select change', 'select[name="currency"]', function () {
-	            updateCurrencyDisplay();
-	        });
+		        $('body').on('changed.bs.select change', 'select[name="currency"]', function () {
+		            updateCurrencyDisplay();
+		            refreshInvoiceBanksForCurrency();
+		        });
 	        applyCustomerCurrency();
 	    });
 	</script>

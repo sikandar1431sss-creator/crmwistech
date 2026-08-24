@@ -16,13 +16,15 @@
 		</div>
 	</div>
 </div>
-<?php init_tail(); ?>
-<script>
+	<?php init_tail(); ?>
+	<script>
 	jQuery(function(){
-	        jQuery('body').on('changed.bs.select change', '#bank_account_id', function () {
-	            setTimeout(function () {
-	                applyCustomerCurrency(true);
-	            }, 0);
+		        var invoiceBankOptions = jQuery('#bank_account_id option').clone();
+
+		        jQuery('body').on('changed.bs.select change', '#bank_account_id', function () {
+		            setTimeout(function () {
+		                applyCustomerCurrency(true);
+		            }, 0);
 	        });
 
 	        jQuery('body').on('submit', 'form._transaction_form', function () {
@@ -45,11 +47,66 @@
             } else {
                 $notice.text('').hide();
             }
-        }
+		        }
 
-	        function validateSelectedBankForCurrency(showAlert) {
-	            if (typeof showAlert === 'undefined') {
-	                showAlert = true;
+		        function refreshInvoiceBanksForCurrency() {
+		            var $bank = jQuery('#bank_account_id');
+		            var $currency = jQuery('select[name="currency"]');
+		            var selectedCurrencyId = $currency.val();
+		            var selectedCurrencyCode = normalizeCurrencyCode($currency.attr('data-current-code') || getCurrencyDisplayText($currency));
+		            var selectedBank = $bank.val();
+		            var matches = [];
+		            var $error = jQuery('#invoice_bank_currency_error');
+
+		            if (!$bank.length || !$currency.length || !invoiceBankOptions.length || !selectedCurrencyId) {
+		                return;
+		            }
+
+		            invoiceBankOptions.each(function () {
+		                var $option = jQuery(this);
+		                var value = $option.attr('value') || '';
+
+		                if (value === '') {
+		                    return;
+		                }
+
+		                var bankCurrencyId = $option.attr('data-currency-id') || '';
+		                var bankCurrencyCode = normalizeCurrencyCode($option.attr('data-currency-code') || '');
+
+		                if (
+		                    (bankCurrencyId && parseInt(bankCurrencyId, 10) === parseInt(selectedCurrencyId, 10))
+		                    || (bankCurrencyCode && selectedCurrencyCode && bankCurrencyCode === selectedCurrencyCode)
+		                ) {
+		                    matches.push($option.clone());
+		                }
+		            });
+
+		            $bank.empty().append(jQuery('<option value="">Select bank account</option>'));
+
+		            if (matches.length) {
+		                jQuery.each(matches, function (_, $option) {
+		                    $bank.append($option);
+		                });
+		                $error.hide().text('');
+		            } else {
+		                $bank.append(jQuery('<option value=""></option>').text('No bank account added for ' + (selectedCurrencyCode || 'selected') + ' currency'));
+		                $error.text('No bank account added for ' + (selectedCurrencyCode || 'selected') + ' currency.').show();
+		            }
+
+		            if (selectedBank && $bank.find('option[value="' + selectedBank + '"]').length) {
+		                $bank.val(selectedBank);
+		            } else {
+		                $bank.val('');
+		            }
+
+		            if ($bank.data('selectpicker')) {
+		                $bank.selectpicker('refresh');
+		            }
+		        }
+
+		        function validateSelectedBankForCurrency(showAlert) {
+		            if (typeof showAlert === 'undefined') {
+		                showAlert = true;
 	            }
 
 	            var $bank = jQuery('#bank_account_id');
@@ -175,10 +232,14 @@
             var $currency = jQuery('select[name="currency"]');
 	            var $submitButtons = jQuery('form.invoice-form button[type="submit"], form.invoice-form input[type="submit"], form._transaction_form button[type="submit"], form._transaction_form input[type="submit"]');
 
-	            if (!customerId || !$currency.length) {
-	                updateClientCurrencyNotice(null);
-	                return;
-	            }
+		            if (!customerId || !$currency.length) {
+		                updateClientCurrencyNotice(null);
+		                if ($currency.length) {
+		                    updateCurrencyDisplay($currency);
+		                    refreshInvoiceBanksForCurrency();
+		                }
+		                return;
+		            }
 
 	            var $notice = jQuery('#client_currency_notice');
 	            if ($notice.length) {
@@ -208,11 +269,12 @@
 		                        $currency.selectpicker('refresh');
 		                    } else {
 		                        $currency.val(currencyId);
-		                    }
-		                    updateCurrencyDisplay($currency, response && response.client_currency_code ? response.client_currency_code : '');
-		                    $currency.trigger('change');
+			                    }
+			                    updateCurrencyDisplay($currency, response && response.client_currency_code ? response.client_currency_code : '');
+			                    refreshInvoiceBanksForCurrency();
+			                    $currency.trigger('change');
 
-	                    if (typeof init_currency_symbol === 'function') {
+		                    if (typeof init_currency_symbol === 'function') {
 	                        init_currency_symbol();
 	                    }
 
@@ -227,14 +289,18 @@
 	                });
 	        }
 
-	        jQuery('body').on('changed.bs.select change', '#clientid', function () {
-	            setTimeout(function () {
-	                applyCustomerCurrency(true);
-	            }, 0);
-	        });
+		        jQuery('body').on('changed.bs.select change', '#clientid', function () {
+		            setTimeout(function () {
+		                applyCustomerCurrency(true);
+		            }, 0);
+		        });
 
-	        setTimeout(function () {
-	            applyCustomerCurrency(false);
+		        jQuery('body').on('changed.bs.select change', 'select[name="currency"]', function () {
+		            refreshInvoiceBanksForCurrency();
+		        });
+
+		        setTimeout(function () {
+		            applyCustomerCurrency(false);
 	        }, 0);
 
 	    <?php
