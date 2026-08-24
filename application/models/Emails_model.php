@@ -156,6 +156,11 @@ class Emails_model extends CRM_Model
      */
     public function send_simple_email($email, $subject, $message)
     {
+        if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+            $this->clear_attachments();
+            return false;
+        }
+
         $cnf = [
             'from_email' => get_option('smtp_email'),
             'from_name'  => get_option('companyname'),
@@ -259,6 +264,12 @@ class Emails_model extends CRM_Model
      */
     public function send_email_template($template_slug, $email, $merge_fields, $ticketid = '', $cc = '', $subject="")
     {
+        if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+            $this->clear_attachments();
+            $this->set_staff_id(null);
+            return false;
+        }
+
         $email = do_action('send_email_template_to', $email);
 
         $template                     = get_email_template_for_sending($template_slug, $email);

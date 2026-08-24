@@ -93,6 +93,10 @@ class Sms
 
     public function trigger($trigger, $phone, $merge_fields = [])
     {
+        if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+            return false;
+        }
+
         if ($phone == '') {
             return false;
         }

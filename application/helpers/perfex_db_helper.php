@@ -769,6 +769,10 @@ function add_setup_menu_item($options = array(), $parent = '')
  */
 function add_notification($values)
 {
+    if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+        return false;
+    }
+
     $CI =& get_instance();
     foreach ($values as $key => $value) {
         $data[$key] = $value;

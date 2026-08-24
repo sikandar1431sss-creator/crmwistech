@@ -21,6 +21,18 @@ define('APP_BASE_URL','http://localhost/24aug/');
 
 /*
 |--------------------------------------------------------------------------
+| Local safety switch
+|--------------------------------------------------------------------------
+|
+| Keep outbound communication disabled while working locally. When enabled,
+| the app will not send emails, SMS messages, staff/client notifications, or
+| realtime Pusher notification events.
+|
+*/
+define('APP_DISABLE_OUTBOUND', true);
+
+/*
+|--------------------------------------------------------------------------
 | Encryption Key
 | IMPORTANT: Do not change this ever!
 |--------------------------------------------------------------------------
@@ -44,7 +56,7 @@ define('APP_DB_USERNAME','root');
 /* The password used to connect to the database */
 define('APP_DB_PASSWORD','');
 /* The name of the database you want to connect to */
-define('APP_DB_NAME','wiscrm_latest');
+define('APP_DB_NAME','crmwistech');
 
 
 /**

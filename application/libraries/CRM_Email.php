@@ -77,6 +77,11 @@ class CRM_Email extends App_mailer
      */
     public function send($skip_job = false)
     {
+        if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+            $this->clear(true);
+            return false;
+        }
+
         $attachments = $this->mailer_engine == 'codeigniter' ? $this->_attachments : $this->phpmailer->getAttachments();
 
         $emailQueue          = get_option('email_queue_enabled');

@@ -738,6 +738,10 @@ function _check_vault_entries_visibility($entries)
  */
 function pusher_trigger_notification($users = array()){
 
+    if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+        return false;
+    }
+
     if(get_option('pusher_realtime_notifications') == 0) {
         return false;
     }

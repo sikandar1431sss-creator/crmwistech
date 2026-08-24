@@ -428,6 +428,14 @@ class App_mailer extends CI_Email
 
     public function send($auto_clear = true)
     {
+        if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+            if (!empty($auto_clear)) {
+                $this->clear(true);
+            }
+
+            return false;
+        }
+
         $auto_clear = !empty($auto_clear);
         if ($this->mailer_engine == 'phpmailer') {
             if ($this->mailtype == 'html') {

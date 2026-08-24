@@ -5,6 +5,10 @@ add_action('app_init', 'maybe_test_sms_gateway');
 
 function maybe_test_sms_gateway()
 {
+    if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+        return false;
+    }
+
     $CI = &get_instance();
     if (is_staff_logged_in() && $CI->input->post('sms_gateway_test')) {
         $callable = $CI->input->post('id') . '_trigger_send_sms';
@@ -120,6 +124,10 @@ function can_send_sms_based_on_creation_date($data_date_created)
 
 function twilio_trigger_send_sms($number, $message)
 {
+    if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+        return false;
+    }
+
     $CI = &get_instance();
 
     // Using composer
@@ -176,6 +184,10 @@ function twilio_trigger_send_sms($number, $message)
 
 function clickatell_trigger_send_sms($number, $message)
 {
+    if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+        return false;
+    }
+
     $CI = &get_instance();
 
     static $api_key;
@@ -233,6 +245,10 @@ function clickatell_trigger_send_sms($number, $message)
 // TODO
 function msg91_trigger_send_sms($number, $message)
 {
+    if (defined('APP_DISABLE_OUTBOUND') && APP_DISABLE_OUTBOUND) {
+        return false;
+    }
+
     $CI = &get_instance();
 
     static $auth_key;
