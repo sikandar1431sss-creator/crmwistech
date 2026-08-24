@@ -108,7 +108,6 @@ class Settings extends Admin_controller
         }
 
         $data['contacts_permissions'] = get_contact_permissions();
-        $this->load->library('pdf');
         $data['payment_gateways'] = $this->payment_modes_model->get_online_payment_modes(true);
         $data['view_name']        = $view;
         $groups_path              = do_action('settings_groups_path', 'admin/settings/includes');

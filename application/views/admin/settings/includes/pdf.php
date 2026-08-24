@@ -13,7 +13,12 @@
 
     <div role="tabpanel" class="tab-pane active" id="general">
 
-        <?php $fonts = $this->pdf->get_fonts_list(); ?>
+        <?php
+        $fonts = array_map(function ($file) {
+            return strtolower(basename($file, '.php'));
+        }, glob(APPPATH . 'vendor/tecnickcom/tcpdf/fonts/*.php'));
+        sort($fonts);
+        ?>
         <label class="control-label"><?php echo _l('settings_pdf_font'); ?></label>
         <select name="settings[pdf_font]" class="selectpicker" data-width="100%" data-live-search="true" data-none-selected-text="<?php echo _l('dropdown_non_selected_tex'); ?>">
             <?php
