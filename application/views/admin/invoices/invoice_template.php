@@ -311,13 +311,15 @@
                   <label for="print_bank_details">Print Bank Details On Invoice</label>
                </div>
 
-               <div class="row">
-                  <div class="col-md-6">
-                     <?php
-                        $s_attrs = array('data-show-subtext'=>true);
-                        $s_attrs = do_action('invoice_currency_disabled',$s_attrs);
-                        unset($s_attrs['disabled']);
-                        foreach($currencies as $currency){
+	               <div class="row">
+	                  <div class="col-md-6">
+	                     <?php
+	                        $selected = '';
+	                        $selected_currency_display = '';
+	                        $s_attrs = array('data-show-subtext'=>true);
+	                        $s_attrs = do_action('invoice_currency_disabled',$s_attrs);
+	                        unset($s_attrs['disabled']);
+	                        foreach($currencies as $currency){
                          if($currency['isdefault'] == 1){
                            $s_attrs['data-base'] = $currency['id'];
                          }
@@ -327,14 +329,31 @@
                          }
                         } else {
                          if($currency['isdefault'] == 1){
-                           $selected = $currency['id'];
-                         }
-                        }
-                        }
-                        ?>
-                     <?php echo render_select('currency',$currencies,array('id','name','symbol'),'invoice_add_edit_currency',$selected,$s_attrs); ?>
-                     <p id="client_currency_notice" class="text-muted mtop5"></p>
-                  </div>
+	                           $selected = $currency['id'];
+	                         }
+	                        }
+	                        }
+	                        if($selected != ''){
+	                           foreach($currencies as $currency){
+	                              if($currency['id'] == $selected){
+	                                 $selected_currency_display = get_receipt_currency_code($currency['id']);
+	                                 if($selected_currency_display == ''){
+	                                    $selected_currency_display = $currency['name'];
+	                                 }
+	                                 break;
+	                              }
+	                           }
+	                        }
+	                        ?>
+	                     <div class="customer-currency-select-wrapper hide">
+	                        <?php echo render_select('currency',$currencies,array('id','name','symbol'),'',$selected,$s_attrs); ?>
+	                     </div>
+	                     <div class="form-group">
+	                        <label for="client_currency_display" class="control-label"><?php echo _l('invoice_add_edit_currency'); ?></label>
+	                        <input type="text" id="client_currency_display" class="form-control" value="<?php echo html_escape($selected_currency_display); ?>" readonly>
+	                     </div>
+	                     <p id="client_currency_notice" class="text-muted mtop5"></p>
+	                  </div>
                   <div class="col-md-6">
                      <?php
                         $i = 0;

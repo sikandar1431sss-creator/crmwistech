@@ -208,18 +208,19 @@ class Payments_model extends CRM_Model
 
             logActivity('Payment Recorded [ID:' . $insert_id . ', Invoice Number: ' . format_invoice_number($invoice->id) . ', Total: ' . format_money($data['amount'], $invoice->symbol) . ']');
 
-            // Send email to the client that the payment is recorded
-            $payment               = $this->get($insert_id);
-            $payment->invoice_data = $this->invoices_model->get($payment->invoiceid);
-            $paymentpdf            = payment_pdf($payment);
-            $attach                = $paymentpdf->Output(_l('payment') . '-' . $payment->paymentid . '.pdf', 'S');
-
-            $this->load->model('emails_model');
-
-            if (!isset($do_not_send_email_template)
+            $send_email = !isset($do_not_send_email_template)
                 || ($subscription != false && $after_success == 'send_invoice_and_receipt')
-                || ($subscription != false && $after_success == 'send_invoice')
-            ) {
+                || ($subscription != false && $after_success == 'send_invoice');
+
+            if ($send_email) {
+                // Send email to the client that the payment is recorded
+                $payment               = $this->get($insert_id);
+                $payment->invoice_data = $this->invoices_model->get($payment->invoiceid);
+                $paymentpdf            = payment_pdf($payment);
+                $attach                = $paymentpdf->Output(_l('payment') . '-' . $payment->paymentid . '.pdf', 'S');
+
+                $this->load->model('emails_model');
+
                 $template             = 'invoice-payment-recorded';
                 $pdfInvoiceAttachment = false;
                 $attachPaymentReceipt = true;

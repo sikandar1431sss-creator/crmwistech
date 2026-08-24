@@ -291,7 +291,11 @@ class Invoices extends Admin_controller
         if ($this->input->post()) {
             $invoice_data = $this->input->post();
             $this->enforceClientDefaultCurrency($invoice_data);
-            $this->validateInvoiceBankCurrencySelection($invoice_data);
+            $bank_currency_error = $this->validateInvoiceBankCurrencySelection($invoice_data);
+            if ($bank_currency_error !== '') {
+                set_alert('danger', $bank_currency_error);
+                redirect($id == '' ? admin_url('invoices/invoice') : admin_url('invoices/invoice/' . $id));
+            }
             if ($id == '') {
                 if (!has_permission('invoices', '', 'create')) {
                     access_denied('invoices');
@@ -396,27 +400,26 @@ class Invoices extends Admin_controller
     private function validateInvoiceBankCurrencySelection($invoice_data)
     {
         if (empty($invoice_data['bank_account_id']) || empty($invoice_data['currency'])) {
-            return;
+            return '';
         }
 
         $this->load->model('bankaccounts_model');
         $bank = $this->bankaccounts_model->get((int)$invoice_data['bank_account_id'], true);
 
         if (!$bank || empty($bank->currency_code)) {
-            return;
+            return '';
         }
 
         $invoice_currency_code = get_receipt_currency_code($invoice_data['currency']);
         $bank_currency_code = normalize_receipt_currency_code($bank->currency_code);
 
         if ($invoice_currency_code !== '' && $bank_currency_code !== '' && $invoice_currency_code !== $bank_currency_code) {
-            show_error(
-                'Selected bank currency is ' . $bank_currency_code
+            return 'Selected bank currency is ' . $bank_currency_code
                 . ', but invoice/customer currency is ' . $invoice_currency_code
-                . '. Please select a matching bank account or change the customer currency.',
-                400
-            );
+                . '. Please select a matching bank account or change the customer currency.';
         }
+
+        return '';
     }
 
     /* Get all invoice data used when user click on invoiec number in a datatable left side*/
@@ -434,7 +437,12 @@ class Invoices extends Admin_controller
 
         $invoice = $this->invoices_model->get($id);
 
-        if (!$invoice || !user_can_view_invoice($id)) {
+        if (!$invoice) {
+            echo _l('invoice_not_found');
+            die;
+        }
+
+        if (!user_can_view_invoice($id)) {
             $clientid = $invoice->clientid;
             if(($clientid == 1617 || $clientid == 1098 || $clientid == 310 || $clientid == 1606 || $clientid == 111 || $clientid == 1525 || $clientid == 1295 || $clientid == 1355 || $clientid == 327) && get_staff_user_id() == 36){
 
@@ -445,7 +453,7 @@ class Invoices extends Admin_controller
         }
         
         $invoice->date = _d($invoice->date);
-        $invoice->duedate = _d($invoice->duedate);
+        $invoice->duedate = !empty($invoice->duedate) ? _d($invoice->duedate) : '';
         $template_name = 'invoice-send-to-client';
         if ($invoice->sent == 1) {
             $template_name = 'invoice-already-send';
@@ -467,8 +475,8 @@ class Invoices extends Admin_controller
         $this->db->where('language', 'english');
         $template_result = $this->db->get('tblemailtemplates')->row();
 
-        $data['template_system_name'] = $template_result->name;
-        $data['template_id'] = $template_result->emailtemplateid;
+        $data['template_system_name'] = $template_result ? $template_result->name : '';
+        $data['template_id'] = $template_result ? $template_result->emailtemplateid : 0;
 
         $data['template_disabled'] = false;
         if (total_rows('tblemailtemplates', ['slug' => $data['template_name'], 'active' => 0]) > 0) {

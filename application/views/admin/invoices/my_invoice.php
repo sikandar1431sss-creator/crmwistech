@@ -57,7 +57,7 @@
             var bankCurrencyId = $selectedBank.attr('data-currency-id') || $selectedBank.data('currency-id');
             var bankCurrencyCode = normalizeCurrencyCode($selectedBank.attr('data-currency-code') || $selectedBank.data('currency-code'));
             var $currency = jQuery('select[name="currency"]');
-            var selectedCurrencyCode = normalizeCurrencyCode($currency.attr('data-current-code') || $currency.find('option:selected').text());
+            var selectedCurrencyCode = normalizeCurrencyCode($currency.attr('data-current-code') || getCurrencyDisplayText($currency));
 
             if (!$bank.val() || !$currency.length || !$currency.val()) {
                 return;
@@ -102,8 +102,8 @@
             }
         }
 
-	        function normalizeCurrencyCode(value) {
-	            value = jQuery('<textarea/>').html((value || '').toString()).text();
+		        function normalizeCurrencyCode(value) {
+		            value = jQuery('<textarea/>').html((value || '').toString()).text();
 	            value = jQuery.trim(value).replace(/\s+/g, ' ').toUpperCase();
 
 	            if (!value) {
@@ -143,9 +143,32 @@
 	                return 'AED';
 	            }
 
-	            var match = value.match(/\b[A-Z]{3}\b/);
-	            return match ? match[0] : value;
-	        }
+		            var match = value.match(/\b[A-Z]{3}\b/);
+		            return match ? match[0] : value;
+		        }
+
+		        function getCurrencyDisplayText($currency, currencyCode) {
+		            if (currencyCode) {
+		                return normalizeCurrencyCode(currencyCode);
+		            }
+
+		            var $selected = $currency.find('option:selected');
+		            var selectedText = jQuery.trim($selected.text());
+		            var selectedSubtext = jQuery.trim($selected.attr('data-subtext') || $selected.data('subtext') || '');
+		            var normalizedText = normalizeCurrencyCode(selectedText);
+
+		            return normalizedText || selectedText || selectedSubtext;
+		        }
+
+		        function updateCurrencyDisplay($currency, currencyCode) {
+		            var $display = jQuery('#client_currency_display');
+
+		            if (!$display.length) {
+		                return;
+		            }
+
+		            $display.val(getCurrencyDisplayText($currency, currencyCode));
+		        }
 
 	        function applyCustomerCurrency(showAlert) {
 	            var customerId = jQuery('#clientid').val();
@@ -180,13 +203,14 @@
 
 	                    $currency.attr('data-current-code', response && response.client_currency_code ? response.client_currency_code : '');
 	                    $currency.prop('disabled', false);
-	                    if ($currency.data('selectpicker')) {
-	                        $currency.selectpicker('val', currencyId);
-	                        $currency.selectpicker('refresh');
-	                    } else {
-	                        $currency.val(currencyId);
-	                    }
-	                    $currency.trigger('change');
+		                    if ($currency.data('selectpicker')) {
+		                        $currency.selectpicker('val', currencyId);
+		                        $currency.selectpicker('refresh');
+		                    } else {
+		                        $currency.val(currencyId);
+		                    }
+		                    updateCurrencyDisplay($currency, response && response.client_currency_code ? response.client_currency_code : '');
+		                    $currency.trigger('change');
 
 	                    if (typeof init_currency_symbol === 'function') {
 	                        init_currency_symbol();

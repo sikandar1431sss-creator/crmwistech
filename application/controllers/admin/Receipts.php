@@ -319,8 +319,17 @@ class Receipts extends Admin_controller
         if ($this->input->post()) {
 
             $post = $this->input->post();
-            $this->validateReceiptInvoiceCurrencySelection($post);
-            $this->validateReceiptDepositBankCurrencySelection($post);
+            $currency_error = $this->validateReceiptInvoiceCurrencySelection($post);
+            if ($currency_error !== '') {
+                set_alert('danger', $currency_error);
+                redirect('admin/receipts/create', 'refresh');
+            }
+
+            $bank_currency_error = $this->validateReceiptDepositBankCurrencySelection($post);
+            if ($bank_currency_error !== '') {
+                set_alert('danger', $bank_currency_error);
+                redirect('admin/receipts/create', 'refresh');
+            }
             // pre_array($post['data']['date']);
             // INSERT DATA
 
@@ -432,8 +441,17 @@ class Receipts extends Admin_controller
         if ($this->input->post()) {
 
             $post = $this->input->post();
-            $this->validateReceiptInvoiceCurrencySelection($post);
-            $this->validateReceiptDepositBankCurrencySelection($post);
+            $currency_error = $this->validateReceiptInvoiceCurrencySelection($post);
+            if ($currency_error !== '') {
+                set_alert('danger', $currency_error);
+                redirect('admin/receipts/update/' . $id, 'refresh');
+            }
+
+            $bank_currency_error = $this->validateReceiptDepositBankCurrencySelection($post);
+            if ($bank_currency_error !== '') {
+                set_alert('danger', $bank_currency_error);
+                redirect('admin/receipts/update/' . $id, 'refresh');
+            }
             $update = $this->receipts_model->update($post);
 
             // redirect('admin/receipts/details/' . $id, 'refresh');
@@ -833,6 +851,7 @@ class Receipts extends Admin_controller
             'id' => $currency->id,
             'name' => $currency->name,
             'symbol' => $currency->symbol,
+            'currency_code' => get_receipt_currency_code($currency->id),
             'source' => $currency_source,
             'message' => $currency_source === 'client'
                 ? 'Currency is set from selected customer: ' . $currency->name . '.'
@@ -871,15 +890,19 @@ class Receipts extends Admin_controller
     private function validateReceiptInvoiceCurrencySelection($post)
     {
         if (!empty($post['data']['client_id']) && !empty($post['data']['currency'])) {
-            $this->assertCurrencyMatchesClientDefault(
+            $client_currency_error = $this->assertCurrencyMatchesClientDefault(
                 $post['data']['client_id'],
                 $post['data']['currency'],
                 'Receipt'
             );
+
+            if ($client_currency_error !== '') {
+                return $client_currency_error;
+            }
         }
 
         if (empty($post['invoice']) || empty($post['data']['currency'])) {
-            return;
+            return '';
         }
 
         $receipt_currency_code = get_receipt_currency_code($post['data']['currency']);
@@ -896,7 +919,7 @@ class Receipts extends Admin_controller
         $paid_invoice_ids = array_values(array_unique($paid_invoice_ids));
 
         if (empty($paid_invoice_ids)) {
-            return;
+            return '';
         }
 
         $invoices = $this->db
@@ -929,57 +952,52 @@ class Receipts extends Admin_controller
         }
 
         if (!empty($mismatched_labels)) {
-            show_error(
-                'Receipt currency is ' . $receipt_currency_code
+            return 'Receipt currency is ' . $receipt_currency_code
                 . ', but payment amount was entered for invoice(s): '
                 . implode(', ', $mismatched_labels)
-                . '. Please create a separate receipt for each currency.',
-                400
-            );
+                . '. Please create a separate receipt for each currency.';
         }
 
         if (count($invoice_currency_codes) > 1) {
-            show_error(
-                'Please create a separate receipt for each currency. Selected paid invoices contain: '
-                . implode(', ', array_keys($invoice_currency_codes)) . '.',
-                400
-            );
+            return 'Please create a separate receipt for each currency. Selected paid invoices contain: '
+                . implode(', ', array_keys($invoice_currency_codes)) . '.';
         }
+
+        return '';
     }
 
     private function validateReceiptDepositBankCurrencySelection($post)
     {
         if (empty($post['data']) || empty($post['data']['currency'])) {
-            return;
+            return '';
         }
 
         $receipt_type = isset($post['data']['type']) ? strtolower(trim($post['data']['type'])) : '';
 
         if ($receipt_type === 'cash' || $receipt_type === 'stripe') {
-            return;
+            return '';
         }
 
         if (empty($post['data']['bank'])) {
-            return;
+            return '';
         }
 
         $bank = get_receipt_deposit_bank($post['data']['bank'], true);
 
         if (!$bank || empty($bank['currency_code'])) {
-            return;
+            return '';
         }
 
         $receipt_currency_code = get_receipt_currency_code($post['data']['currency']);
         $bank_currency_code = normalize_receipt_currency_code($bank['currency_code']);
 
         if ($receipt_currency_code !== '' && $bank_currency_code !== '' && $receipt_currency_code !== $bank_currency_code) {
-            show_error(
-                'Selected bank currency is ' . $bank_currency_code
+            return 'Selected bank currency is ' . $bank_currency_code
                 . ', but receipt currency is ' . $receipt_currency_code
-                . '. Please select a matching bank account or change the receipt currency.',
-                400
-            );
+                . '. Please select a matching bank account or change the receipt currency.';
         }
+
+        return '';
     }
 
     private function getClientDefaultCurrencyId($client_id)
@@ -1000,17 +1018,14 @@ class Receipts extends Admin_controller
         $client_currency_id = $this->getClientDefaultCurrencyId($client_id);
 
         if ($client_currency_id <= 0 || (int)$currency_id === $client_currency_id) {
-            return;
+            return '';
         }
 
         $client_currency_code = get_receipt_currency_code($client_currency_id);
         $selected_currency_code = get_receipt_currency_code($currency_id);
 
-        show_error(
-            $context . ' currency must match the selected customer currency. Customer currency is '
-            . $client_currency_code . ', selected currency is ' . $selected_currency_code . '.',
-            400
-        );
+        return $context . ' currency must match the selected customer currency. Customer currency is '
+            . $client_currency_code . ', selected currency is ' . $selected_currency_code . '.';
     }
 
     /**
@@ -2034,11 +2049,16 @@ class Receipts extends Admin_controller
 protected function receiptJson($receipt_data)
 {
     if (!empty($receipt_data['local_client_id']) && !empty($receipt_data['receipt_currency'])) {
-        $this->assertCurrencyMatchesClientDefault(
+        $currency_error = $this->assertCurrencyMatchesClientDefault(
             $receipt_data['local_client_id'],
             $receipt_data['receipt_currency'],
             'Receipt'
         );
+
+        if ($currency_error !== '') {
+            echo $currency_error;
+            exit;
+        }
     }
 
     $invoices =
@@ -2791,11 +2811,15 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
                         } else {
                             $invoice['place_of_supply'] = "DU";
                         }
-                        $this->assertCurrencyMatchesClientDefault(
+                        $currency_error = $this->assertCurrencyMatchesClientDefault(
                             $client->userid,
                             isset($invoice['currency']) ? $invoice['currency'] : '',
                             'Invoice'
                         );
+                        if ($currency_error !== '') {
+                            echo $currency_error;
+                            exit;
+                        }
                         $invoice['clientid'] = $this->getOrCreateZohoContactId(
                             $client->userid,
                             $zb,
@@ -2900,11 +2924,15 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
                         } else {
                             $invoice['place_of_supply'] = "DU";
                         }
-                        $this->assertCurrencyMatchesClientDefault(
+                        $currency_error = $this->assertCurrencyMatchesClientDefault(
                             $client->userid,
                             isset($invoice['currency']) ? $invoice['currency'] : '',
                             'Invoice'
                         );
+                        if ($currency_error !== '') {
+                            echo $currency_error;
+                            exit;
+                        }
                         $invoice['clientid'] = $this->getOrCreateZohoContactId(
                             $client->userid,
                             $zb,

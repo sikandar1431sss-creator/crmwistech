@@ -186,23 +186,31 @@ $csrf = array(
 
                         </div>
 
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="clientid"><?= _l('receipt_currency'); ?></label>
-                                <select id="receipt_currency" name="data[currency]" class="form-control">
-                                    <?php
-                                    foreach ($currencies as $currency) {
-                                        $selected = "";
-                                        if ($receipts->receipt_currency == $currency['id']) {
-                                            /* if ($currency['id'] == $default_currency) {*/
-                                            $selected = 'selected';
-                                        }
-                                        echo '<option value="' . $currency['id'] . '" data-currency-code="' . html_escape(get_receipt_currency_code($currency['id'])) . '"' . $selected . '>' . $currency['name'] . '</option>';
-                                    } ?>
-                                </select>
-                                <p id="receipt_currency_notice" class="text-muted mtop5"></p>
-                            </div>
-                        </div>
+	                        <div class="col-md-3">
+	                            <div class="form-group">
+	                                <label for="receipt_currency_display"><?= _l('receipt_currency'); ?></label>
+	                                <?php $selected_currency_display = ''; ?>
+	                                <div class="receipt-currency-select-wrapper hide">
+	                                <select id="receipt_currency" name="data[currency]" class="form-control">
+	                                    <?php
+	                                    foreach ($currencies as $currency) {
+	                                        $selected = "";
+	                                        if ($receipts->receipt_currency == $currency['id']) {
+	                                            /* if ($currency['id'] == $default_currency) {*/
+	                                            $selected = 'selected';
+	                                            $selected_currency_display = get_receipt_currency_code($currency['id']);
+	                                            if ($selected_currency_display == '') {
+	                                                $selected_currency_display = $currency['name'];
+	                                            }
+	                                        }
+	                                        echo '<option value="' . $currency['id'] . '" data-currency-code="' . html_escape(get_receipt_currency_code($currency['id'])) . '"' . $selected . '>' . $currency['name'] . '</option>';
+	                                    } ?>
+	                                </select>
+	                                </div>
+	                                <input type="text" id="receipt_currency_display" class="form-control" value="<?= html_escape($selected_currency_display); ?>" readonly>
+	                                <p id="receipt_currency_notice" class="text-muted mtop5"></p>
+	                            </div>
+	                        </div>
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="deposited_verified"><?= _l('receipt_deposited_verified'); ?></label>
@@ -383,9 +391,10 @@ $csrf = array(
     $('input[type="checkbox"]').on('change', function() {
         $('input[type="checkbox"]').not(this).prop('checked', false);
     });
-    $(document).ready(function () {
-        var receiptDepositBanks = <?php echo json_encode(get_receipt_deposit_banks()); ?>;
-        var receiptFormReady = false;
+	    $(document).ready(function () {
+	        var receiptDepositBanks = <?php echo json_encode(get_receipt_deposit_banks()); ?>;
+	        var receiptFormReady = false;
+	        var receiptInvoicesRequestId = 0;
 
         function receiptDepositBankLabel(bank) {
             var label = bank.name || '';
@@ -402,9 +411,21 @@ $csrf = array(
             return meta.length ? label + ' (' + meta.join(' - ') + ')' : label;
         }
 
-        function getReceiptCurrencyCode() {
-            return $.trim($("#receipt_currency option:selected").data('currency-code') || $("#receipt_currency option:selected").text()).toUpperCase();
-        }
+	        function getReceiptCurrencyCode() {
+	            return $.trim($("#receipt_currency option:selected").data('currency-code') || $("#receipt_currency option:selected").text()).toUpperCase();
+	        }
+
+	        function updateReceiptCurrencyDisplay(currencyCode) {
+	            var displayValue = currencyCode || $("#receipt_currency option:selected").data('currency-code') || $("#receipt_currency option:selected").text();
+	            $("#receipt_currency_display").val($.trim(displayValue || '').toUpperCase());
+	        }
+
+	        function emptyReceiptInvoices(message) {
+	            $("#invoices_data").html('<tr><td colspan="7">' + (message || 'No Receipt Available') + '</td></tr>');
+	            $("#total_amount").text('0');
+	            $("#total_due").text('0');
+	            $("#amount_total").text('0');
+	        }
 
         function getReceiptDepositBankOptions(selected) {
             var bankOptions = '';
@@ -581,12 +602,13 @@ $csrf = array(
                 success: function (response) {
                     updateReceiptCurrencyNotice(response);
 
-                    if (response && response.success && response.id) {
-                        $("#receipt_currency").val(response.id);
-                        if ($("#receipt_currency").data('selectpicker')) {
-                            $("#receipt_currency").selectpicker('refresh');
-                        }
-                    }
+	                    if (response && response.success && response.id) {
+	                        $("#receipt_currency").val(response.id);
+	                        if ($("#receipt_currency").data('selectpicker')) {
+	                            $("#receipt_currency").selectpicker('refresh');
+	                        }
+	                        updateReceiptCurrencyDisplay(response.currency_code || response.name);
+	                    }
 
                     if (typeof callback === 'function') {
                         callback();
@@ -600,44 +622,46 @@ $csrf = array(
             });
         }
 
-        function loadClientInvoices() {
-            var client = $("#customer").val();
+	        function loadClientInvoices() {
+		            var client = $("#customer").val();
+		            var currency = $("#receipt_currency").val();
+		            var requestId = ++receiptInvoicesRequestId;
 
-            if (client == "" || client == "undefined") {
-                $("#invoices_data").html('');
-                $("#total_amount").html(0);
-                $("#total_due").html(0);
-                return;
-            }
+		            if (client == "" || client == "undefined") {
+		                emptyReceiptInvoices();
+		                return;
+		            }
 
-            $.ajax({
-                url: '<?php echo base_url();?>admin/receipts/clients_invoices/' + client,
-                type: 'GET',
-                data: {
-                    currency: $("#receipt_currency").val()
-                },
-                success: function (data) {
-                    var obj = null;
-                    try {
+		            $.ajax({
+		                url: '<?php echo base_url();?>admin/receipts/clients_invoices/' + client,
+	                type: 'GET',
+	                data: {
+	                    currency: currency
+	                },
+	                success: function (data) {
+	                    var obj = null;
+	                    try {
                         obj = JSON.parse(data);
                     } catch (ex) {
                         // Invalid JSON (likely an error page). Do not overwrite existing invoice rows.
-                        console.log('clients_invoices: invalid json response', ex, data);
-                        return;
-                    }
+	                        console.log('clients_invoices: invalid json response', ex, data);
+		                        return;
+		                    }
 
-                    // If server returned an empty html (for example due to validation error),
-                    // do not overwrite existing invoice rows rendered on the page.
-                    if (typeof obj.html !== 'undefined') {
-                        if (obj.html === '' && $("#invoices_data").children().length > 0) {
-                            return;
-                        }
+		                    if (requestId !== receiptInvoicesRequestId || client !== $("#customer").val() || currency !== $("#receipt_currency").val()) {
+	                        return;
+	                    }
 
-                        $("#invoices_data").html(obj.html);
-                        $("#total_amount").html(obj.total_payable);
-                        $("#total_due").html(obj.amount_due);
-                    }
-                },
+	                    if (typeof obj.html !== 'undefined') {
+	                        if (obj.html === '') {
+	                            emptyReceiptInvoices();
+	                        } else {
+	                            $("#invoices_data").html(obj.html);
+	                            $("#total_amount").html(obj.total_payable);
+	                            $("#total_due").html(obj.amount_due);
+	                        }
+	                    }
+	                },
                 error: function (e) {
                     console.log(e);
                 }
@@ -668,10 +692,11 @@ $csrf = array(
         html += '   </div>';
         html += '</div>';
 
-        $("#customer").change(function (event) {
-            event.preventDefault();
-            var client = $(this).val();
-            enforceCustomerCurrency(loadClientInvoices);
+	        $("#customer").change(function (event) {
+	            event.preventDefault();
+	            var client = $(this).val();
+	            emptyReceiptInvoices('Loading invoices...');
+	            enforceCustomerCurrency(loadClientInvoices);
 
             if (client != "" && client != "undefined") {
                 $.ajax({
@@ -714,18 +739,20 @@ $csrf = array(
 
         });
 
-        $("#receipt_currency").change(function () {
-            enforceCustomerCurrency(loadClientInvoices);
-        });
+	        $("#receipt_currency").change(function () {
+	            updateReceiptCurrencyDisplay();
+	            enforceCustomerCurrency(loadClientInvoices);
+	        });
 
         $(document).on('change', '#deposit_to', function () {
             selectReceiptCurrencyFromBank($(this).val());
         });
 
-        setTimeout(function () {
-            enforceCustomerCurrency(function () {
-                // If server-side already rendered invoices (editing existing receipt), do not overwrite them.
-                if ($('#invoices_data').children().length === 0) {
+	        setTimeout(function () {
+	            enforceCustomerCurrency(function () {
+	                updateReceiptCurrencyDisplay();
+	                // If server-side already rendered invoices (editing existing receipt), do not overwrite them.
+	                if ($('#invoices_data').children().length === 0) {
                     loadClientInvoices();
                 } else {
                     // Ensure totals and currency validation still run
