@@ -300,10 +300,12 @@ if ($invoice->status == 6) { ?>
         <div class="col-md-12 row mtop15">
             <p class="bold text-muted"><?php echo _l('terms_and_conditions'); ?></p>
             <p><?php echo $invoice->terms; ?></p>
-            <?php $bank_details_html = get_invoice_bank_details_html($invoice); ?>
-            <?php if ($bank_details_html !== '') { ?>
-                <?php echo $bank_details_html; ?>
-            <?php } ?>
+        </div>
+    <?php } ?>
+    <?php $bank_details_html = get_invoice_bank_details_html($invoice); ?>
+    <?php if ($bank_details_html !== '') { ?>
+        <div class="col-md-12 row mtop15">
+            <?php echo $bank_details_html; ?>
         </div>
     <?php } ?>
 </div>

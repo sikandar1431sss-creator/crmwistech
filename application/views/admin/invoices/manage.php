@@ -13,8 +13,13 @@
 <script>var hidden_columns = [2,6,7,8,9];</script>
 <?php init_tail(); ?>
 <script>
+	var invoicePreviewId = <?php echo json_encode($invoiceid); ?>;
 	$(function(){
-		init_invoice();
+		if (invoicePreviewId) {
+			init_invoice(invoicePreviewId);
+		} else {
+			init_invoice();
+		}
 	});
 </script>
 
