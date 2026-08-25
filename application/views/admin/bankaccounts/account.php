@@ -23,7 +23,7 @@ $selected_active = $bank_account ? (int)$bank_account->active : 1;
                                     <label for="title" class="control-label"><small class="req text-danger">*</small> Title</label>
                                     <select name="title" id="title" class="form-control">
                                         <?php
-                                        $titles = ['Bank Account', 'Cash Account', 'Wallet Account'];
+                                        $titles = ['Wisdom Information Technology Solutions LLC'];
                                         $selected_title = $bank_account ? $bank_account->title : 'Bank Account';
                                         foreach ($titles as $title_option) {
                                             $selected = $selected_title === $title_option ? ' selected' : '';

@@ -9,7 +9,7 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
     <div class="content">
         <div class="row">
             <div class="col-md-12">
-                <div class="panel_s">ror 
+                <div class="panel_s">
                     <div class="panel-body">
                         <div class="_buttons">
                             <?php if ($can_create_bankaccounts) { ?>
