@@ -2982,5 +2982,719 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
         $zb->postInvoice_status_sent($invoice_id);
     }
 
+    /**
+     * Real-time Server-Sent Events (SSE) stream for posting a receipt to Zoho Books
+     * Shows step-by-step customer check, multi-invoice verification, and receipt creation.
+     */
+    public function post_receipt_zoho_stream()
+    {
+        if (function_exists('apache_setenv')) {
+            @apache_setenv('no-gzip', 1);
+        }
+        @ini_set('zlib.output_compression', 0);
+        @ini_set('implicit_flush', 1);
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+        ob_implicit_flush(1);
+
+        header('Content-Type: text/event-stream; charset=UTF-8');
+        header('Cache-Control: no-cache, no-transform');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+
+        $emit = function ($data) {
+            echo "data: " . json_encode($data) . "\n\n";
+            if (ob_get_level() > 0) {
+                @ob_flush();
+            }
+            @flush();
+        };
+
+        $receipt_id = $this->input->get('receipt_id') ? $this->input->get('receipt_id') : $this->input->post('receipt_id');
+        if (empty($receipt_id)) {
+            $emit(['type' => 'error', 'step' => 'init', 'message' => 'Receipt ID is missing.']);
+            exit;
+        }
+
+        $where = [
+            'tblreciepts.receipt_id' => $receipt_id,
+        ];
+        $receipts = $this->receipts_model->get_zoho('', $where);
+        if (empty($receipts)) {
+            $emit(['type' => 'error', 'step' => 'init', 'message' => 'No receipt found in CRM database.']);
+            exit;
+        }
+
+        $receipt = $receipts[0];
+        if (!empty($receipt['zoho_id']) && strtoupper(trim($receipt['zoho_id'])) !== 'NULL') {
+            $emit(['type' => 'error', 'step' => 'init', 'message' => 'This receipt has already been posted to Zoho Books (Zoho Payment ID: ' . trim($receipt['zoho_id']) . ').']);
+            exit;
+        }
+
+        $client = $this->clients_model->get($receipt['receipt_client_id']);
+        if (empty($client)) {
+            $emit(['type' => 'error', 'step' => 'customer', 'message' => 'Customer record not found for this receipt.']);
+            exit;
+        }
+
+        $receiptInvoices = $this->receipts_model->get_zoho_recipt_invoices($receipt['receipt_id']);
+        if (empty($receiptInvoices)) {
+            $emit(['type' => 'error', 'step' => 'invoices', 'message' => 'Unable to post receipt: no invoice payment allocations found for this receipt.']);
+            exit;
+        }
+
+        $client_company = !empty($client->company) ? $client->company : ('Client #' . $client->userid);
+        $receipt_num = !empty($receipt['receipt_num']) ? strip_tags($receipt['receipt_num']) : ('#' . $receipt_id);
+        $transaction_currency_code = $this->getReceiptTransactionCurrencyCode($receipt, $receiptInvoices);
+        $base_currency_code = $this->getBaseCurrencyCode();
+
+        // Check bank deposit mapping
+        $bank_code = isset($receipt['deposit_bank']) ? trim((string)$receipt['deposit_bank']) : '';
+        $bank = get_receipt_deposit_bank($bank_code, true);
+        if (!$bank) {
+            $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: please select a deposit bank account for this receipt.']);
+            exit;
+        }
+        $bank_label = get_receipt_deposit_bank_label($bank);
+        if (empty($bank['account_id'])) {
+            $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: selected bank "' . $bank_label . '" is not linked with a Zoho account.']);
+            exit;
+        }
+
+        $emit([
+            'type' => 'init',
+            'receipt_id' => $receipt_id,
+            'receipt_num' => $receipt_num,
+            'client_name' => $client_company,
+            'amount' => number_format((float)$receipt['receipt_amount'], 2),
+            'currency' => $transaction_currency_code,
+            'bank' => $bank_label,
+            'message' => 'Initializing receipt ' . $receipt_num . ' for ' . $client_company . ' (' . $transaction_currency_code . ' ' . number_format((float)$receipt['receipt_amount'], 2) . ')'
+        ]);
+
+        $zb = new ZohoBooks();
+
+        // ==========================================
+        // STEP 1: Checking Customer
+        // ==========================================
+        $emit([
+            'type' => 'step_start',
+            'step' => 'customer',
+            'message' => 'Checking Customer: ' . $client_company . '...'
+        ]);
+
+        $zoho_contact_id = '';
+        $customer_status = '';
+
+        if (!empty($client->zoho_id) && strtoupper(trim($client->zoho_id)) !== 'NULL') {
+            $contact_response = $zb->getContact(trim($client->zoho_id));
+            $contact_data = $contact_response ? json_decode($contact_response) : null;
+
+            if (!empty($contact_data) && isset($contact_data->code) && (int)$contact_data->code === 0 && isset($contact_data->contact->contact_id)) {
+                $zoho_contact_id = $contact_data->contact->contact_id;
+                $customer_status = 'exists';
+
+                $zoho_contact_currency_code = $this->getZohoContactCurrencyCode($contact_data->contact, $transaction_currency_code);
+                if ($transaction_currency_code !== '' && $zoho_contact_currency_code !== '' && $zoho_contact_currency_code !== $transaction_currency_code) {
+                    $zoho_contact_name = !empty($contact_data->contact->contact_name) ? $contact_data->contact->contact_name : $client_company;
+                    $emit([
+                        'type' => 'error',
+                        'step' => 'customer',
+                        'message' => 'Customer currency mismatch: CRM customer "' . $client_company . '" is ' . $transaction_currency_code . ', but mapped Zoho customer "' . $zoho_contact_name . '" is ' . $zoho_contact_currency_code . '.'
+                    ]);
+                    exit;
+                }
+
+                $emit([
+                    'type' => 'step_update',
+                    'step' => 'customer',
+                    'status' => 'exists',
+                    'log_type' => 'info',
+                    'message' => 'Checking Customer: ' . $client_company . ' — Already Exists in Zoho (Zoho Contact ID: ' . $zoho_contact_id . ')'
+                ]);
+            }
+        }
+
+        if (empty($zoho_contact_id)) {
+            $emit([
+                'type' => 'step_update',
+                'step' => 'customer',
+                'status' => 'creating',
+                'log_type' => 'info',
+                'message' => 'Checking Customer: Not Exists so creating in Zoho Books...'
+            ]);
+
+            $contact_data_arr = $this->createContactData($client->userid, $transaction_currency_code);
+            if (empty($contact_data_arr)) {
+                $emit(['type' => 'error', 'step' => 'customer', 'message' => 'Unable to prepare Zoho contact payload for client ' . $client_company]);
+                exit;
+            }
+
+            $contact_response = $zb->postContact(json_encode($contact_data_arr));
+            $contact_result = $contact_response ? json_decode($contact_response) : null;
+
+            if (empty($contact_result) || !isset($contact_result->code) || (int)$contact_result->code !== 0 || !isset($contact_result->contact->contact_id)) {
+                $err_msg = isset($contact_result->message) ? $contact_result->message : 'Unable to create customer in Zoho Books.';
+                $emit(['type' => 'error', 'step' => 'customer', 'message' => 'Zoho Error: ' . $err_msg]);
+                exit;
+            }
+
+            $zoho_contact_id = $contact_result->contact->contact_id;
+            $customer_status = 'created';
+            update_zoho_id('tblclients', 'userid', $client->userid, 'zoho_id', $zoho_contact_id);
+
+            $emit([
+                'type' => 'step_update',
+                'step' => 'customer',
+                'status' => 'created',
+                'log_type' => 'success',
+                'message' => 'Customer created successfully in Zoho Books (Zoho Contact ID: ' . $zoho_contact_id . ')'
+            ]);
+        }
+
+        $receipt['receipt_client_id'] = $zoho_contact_id;
+        $receipt['local_client_id'] = $client->userid;
+
+        $emit([
+            'type' => 'step_done',
+            'step' => 'customer',
+            'status' => $customer_status,
+            'zoho_id' => $zoho_contact_id,
+            'message' => 'Customer verified: ' . $client_company . ' (ID: ' . $zoho_contact_id . ')'
+        ]);
+
+        // ==========================================
+        // STEP 2: Checking Invoice(s)
+        // ==========================================
+        $invoices_count = count($receiptInvoices);
+        $emit([
+            'type' => 'step_start',
+            'step' => 'invoices',
+            'total_invoices' => $invoices_count,
+            'message' => 'Checking Invoice(s): ' . $invoices_count . ' linked invoice(s) found.'
+        ]);
+
+        $verified_invoices = [];
+        $idx = 0;
+
+        foreach ($receiptInvoices as $inv) {
+            $idx++;
+            $inv_label = strip_tags((!empty($inv['prefix']) ? $inv['prefix'] : '') . $inv['number']);
+            if ($inv_label === '') {
+                $inv_label = 'Invoice #' . $inv['invoiceid'];
+            }
+
+            $emit([
+                'type' => 'invoice_update',
+                'index' => $idx,
+                'total' => $invoices_count,
+                'invoice_id' => $inv['invoiceid'],
+                'invoice_number' => 'Inv ' . $idx . ' (' . $inv_label . ')',
+                'status' => 'checking',
+                'log_type' => 'info',
+                'message' => 'Checking ' . $inv_label . '...'
+            ]);
+
+            $zoho_invoice_id = '';
+            if (!empty($inv['zoho_id']) && strtoupper(trim($inv['zoho_id'])) !== 'NULL') {
+                $zoho_invoice_id = trim($inv['zoho_id']);
+                $emit([
+                    'type' => 'invoice_update',
+                    'index' => $idx,
+                    'total' => $invoices_count,
+                    'invoice_id' => $inv['invoiceid'],
+                    'invoice_number' => 'Inv ' . $idx . ' (' . $inv_label . ')',
+                    'status' => 'exists',
+                    'zoho_id' => $zoho_invoice_id,
+                    'log_type' => 'info',
+                    'message' => 'Inv ' . $idx . ' (' . $inv_label . '): already Exists in Zoho (ID: ' . $zoho_invoice_id . ')'
+                ]);
+            } else {
+                $emit([
+                    'type' => 'invoice_update',
+                    'index' => $idx,
+                    'total' => $invoices_count,
+                    'invoice_id' => $inv['invoiceid'],
+                    'invoice_number' => 'Inv ' . $idx . ' (' . $inv_label . ')',
+                    'status' => 'creating',
+                    'log_type' => 'info',
+                    'message' => 'Inv ' . $idx . ' (' . $inv_label . '): creating in Zoho Books...'
+                ]);
+
+                // Create invoice in Zoho
+                $zoho_invoice_id = $this->createInvoiceForStream($inv['invoiceid'], $zb, $emit, $idx, $invoices_count, $inv_label);
+                if (empty($zoho_invoice_id)) {
+                    exit;
+                }
+
+                $emit([
+                    'type' => 'invoice_update',
+                    'index' => $idx,
+                    'total' => $invoices_count,
+                    'invoice_id' => $inv['invoiceid'],
+                    'invoice_number' => 'Inv ' . $idx . ' (' . $inv_label . ')',
+                    'status' => 'created',
+                    'zoho_id' => $zoho_invoice_id,
+                    'log_type' => 'success',
+                    'message' => 'Inv ' . $idx . ' (' . $inv_label . '): created in Zoho (ID: ' . $zoho_invoice_id . ')'
+                ]);
+            }
+
+            $inv['zoho_id'] = $zoho_invoice_id;
+            $verified_invoices[] = $inv;
+        }
+
+        $emit([
+            'type' => 'step_done',
+            'step' => 'invoices',
+            'message' => 'All ' . $invoices_count . ' invoice(s) verified in Zoho Books.'
+        ]);
+
+        // ==========================================
+        // STEP 3: Creating Receipt…..
+        // ==========================================
+        $emit([
+            'type' => 'step_start',
+            'step' => 'receipt',
+            'message' => 'Creating Receipt…..'
+        ]);
+
+        // Prepare allocations
+        $invoices_payload = [];
+        foreach ($verified_invoices as $inv) {
+            $payment_old = $this->receipts_model->get_invoice_previous_payment($inv['invoiceid'], $receipt['receipt_id']);
+            $inv_total = (float)$inv['total'];
+            if ($payment_old !== null) {
+                $inv_total = $inv_total - (float)$payment_old;
+            }
+
+            $amount_applied = (float)$inv['applied_amount'];
+            if ($amount_applied > $inv_total) {
+                $amount_applied = $inv_total;
+            }
+
+            if ($amount_applied > 0) {
+                $invoices_payload[] = [
+                    'invoice_id' => (string)$inv['zoho_id'],
+                    'amount_applied' => round($amount_applied, 2),
+                ];
+            }
+        }
+
+        if (empty($invoices_payload)) {
+            $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to prepare payment data: no positive invoice amount available to apply.']);
+            exit;
+        }
+
+        // Determine payment mode & deposit account
+        $payment_mode = 'others';
+        $description = '';
+        $account_id = '1312911000000073107';
+
+        if ($receipt['receipt_type'] === 'Cheque') {
+            $payment_mode = 'check';
+            $account_id = $bank['account_id'];
+        } elseif ($receipt['receipt_type'] === 'Cash') {
+            $payment_mode = 'cash';
+            if (isset($receipt['reciept_owner']) && (int)$receipt['reciept_owner'] === 21) {
+                $account_id = '1312911000000086053';
+            } else {
+                $account_id = '1312911000000073107';
+            }
+        } elseif ($receipt['receipt_type'] === 'Bank Transfer') {
+            $payment_mode = 'banktransfer';
+            $account_id = $bank['account_id'];
+        } elseif ($receipt['receipt_type'] === 'Stripe') {
+            $payment_mode = 'creditcard';
+            $description = 'Stripe payment';
+            $account_id = '1312911000004871001';
+        }
+
+        $zoho_currency = $this->getZohoCurrencyByCode($transaction_currency_code);
+        $payment_date = date('Y-m-d', strtotime($receipt['receipt_date']));
+
+        $receipt_payload = [
+            'payment_mode' => $payment_mode,
+            'amount' => round((float)$receipt['receipt_amount'], 2),
+            'date' => $payment_date,
+            'reference_number' => (string)$receipt['receipt_num'],
+            'description' => $description,
+            'customer_id' => (string)$zoho_contact_id,
+            'invoices' => $invoices_payload,
+            'exchange_rate' => !empty($zoho_currency['exchange_rate']) ? $zoho_currency['exchange_rate'] : 1,
+            'account_id' => (string)$account_id,
+        ];
+        if ($transaction_currency_code !== '') {
+            $receipt_payload['currency_code'] = $transaction_currency_code;
+        }
+
+        $emit([
+            'type' => 'step_update',
+            'step' => 'receipt',
+            'status' => 'posting',
+            'log_type' => 'info',
+            'message' => 'Sending payment payload to Zoho Books (Amount: ' . $transaction_currency_code . ' ' . number_format((float)$receipt['receipt_amount'], 2) . ', Bank: ' . $bank_label . ')...'
+        ]);
+
+        $payment_response = $zb->postPayment(json_encode($receipt_payload));
+        $payment_data = $payment_response ? json_decode($payment_response) : null;
+
+        if (empty($payment_data) || !isset($payment_data->code)) {
+            $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Invalid or empty response received from Zoho Books when creating payment.']);
+            exit;
+        }
+
+        if ((int)$payment_data->code !== 0 || empty($payment_data->payment->payment_id)) {
+            $err_msg = isset($payment_data->message) ? $payment_data->message : 'Unable to create payment in Zoho Books.';
+            $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Zoho Error: ' . $err_msg]);
+            exit;
+        }
+
+        $payment_id = $payment_data->payment->payment_id;
+
+        // Update tblreciepts with zoho_id
+        $this->db->where('receipt_id', $receipt['receipt_id']);
+        $this->db->update('tblreciepts', ['zoho_id' => $payment_id]);
+
+        $emit([
+            'type' => 'step_done',
+            'step' => 'receipt',
+            'payment_id' => $payment_id,
+            'message' => 'Receipt created successfully in Zoho Books! (Zoho Payment ID: ' . $payment_id . ')'
+        ]);
+
+        $emit([
+            'type' => 'complete',
+            'success' => true,
+            'payment_id' => $payment_id,
+            'message' => 'Receipt ' . $receipt_num . ' has been synchronized to Zoho Books successfully!'
+        ]);
+
+        exit;
+    }
+
+    /**
+     * Helper to create an invoice during streaming without killing entire script abruptly
+     */
+    protected function createInvoiceForStream($id, ZohoBooks $zb, $emit, $idx, $total_invoices, $inv_label)
+    {
+        $where['type'] = 'invoice';
+        $where['tblinvoices.id'] = $id;
+        $invoices = $this->invoices_model->get('', $where);
+
+        if (empty($invoices)) {
+            $emit(['type' => 'error', 'step' => 'invoices', 'message' => 'Invoice ' . $inv_label . ' not found in database.']);
+            return false;
+        }
+
+        $invoice = $invoices[0];
+        $client = $this->clients_model->get($invoice['clientid']);
+        if (empty($client)) {
+            $emit(['type' => 'error', 'step' => 'invoices', 'message' => 'Customer for invoice ' . $inv_label . ' not found in database.']);
+            return false;
+        }
+
+        if (!empty($client->vat)) {
+            $invoice['vat_reg_no'] = $client->vat;
+            $invoice['vat_treatment'] = "vat_registered";
+        } else {
+            $invoice['vat_reg_no'] = $client->vat;
+            $invoice['vat_treatment'] = "vat_not_registered";
+        }
+
+        $city = strtolower(trim((string)$client->city));
+        if ($city == "dubai") {
+            $invoice['place_of_supply'] = "DU";
+        } else if ($city == "abu dhabi") {
+            $invoice['place_of_supply'] = "AB";
+        } else if ($city == "sharjah") {
+            $invoice['place_of_supply'] = "SH";
+        } else if ($city == "ajman") {
+            $invoice['place_of_supply'] = "AJ";
+        } else if ($city == "fujairah") {
+            $invoice['place_of_supply'] = "FU";
+        } else if ($city == "ras al khaimah") {
+            $invoice['place_of_supply'] = "RA";
+        } else if ($city == "umm al quwain") {
+            $invoice['place_of_supply'] = "UM";
+        } else {
+            $invoice['place_of_supply'] = "DU";
+        }
+
+        $currency_code = $this->getInvoiceCurrencyCode($invoice);
+        $currency_error = $this->assertCurrencyMatchesClientDefault($client->userid, $invoice['currency'], 'Invoice');
+        if ($currency_error !== '') {
+            $emit(['type' => 'error', 'step' => 'invoices', 'message' => $currency_error]);
+            return false;
+        }
+
+        $zoho_contact_id = $this->getOrCreateZohoContactIdInternal($client->userid, $zb, $currency_code, $emit);
+        if (empty($zoho_contact_id)) {
+            return false;
+        }
+        $invoice['clientid'] = $zoho_contact_id;
+
+        $invoice_payload = $this->invoiceJson($invoice);
+        $invoice_data = $this->postZohoInvoice($zb, $invoice_payload);
+
+        if (empty($invoice_data) || !isset($invoice_data->code)) {
+            $emit(['type' => 'error', 'step' => 'invoices', 'message' => 'Invalid or empty response received when creating invoice ' . $inv_label . ' in Zoho Books.']);
+            return false;
+        }
+
+        if ((int)$invoice_data->code === 0 && isset($invoice_data->invoice->invoice_id)) {
+            $zoho_inv_id = $invoice_data->invoice->invoice_id;
+            $this->assertZohoInvoiceCurrencyMatches($invoice, $invoice_data);
+
+            // Update items table
+            $this->db->where('rel_id', $invoice['id']);
+            $this->db->update('tblitems_in', ['zoho_id' => $zoho_inv_id]);
+
+            // Update invoice table
+            $this->db->where('id', $invoice['id']);
+            $this->db->update('tblinvoices', ['zoho_id' => $zoho_inv_id]);
+
+            $this->createInvoice_sent_zoho_ajax($zoho_inv_id);
+            return $zoho_inv_id;
+        } else {
+            $err_msg = isset($invoice_data->message) ? $invoice_data->message : 'Unable to create Zoho invoice.';
+            $emit(['type' => 'error', 'step' => 'invoices', 'message' => 'Zoho Error for ' . $inv_label . ': ' . $err_msg]);
+            return false;
+        }
+    }
+
+    /**
+     * Helper to get or create Zoho contact with emit callback
+     */
+    protected function getOrCreateZohoContactIdInternal($client_id, ZohoBooks $zb, $currency_code = '', $emit = null)
+    {
+        $client = $this->clients_model->get($client_id);
+        $currency_code = normalize_receipt_currency_code($currency_code);
+
+        if (empty($client)) {
+            if ($emit) $emit(['type' => 'error', 'step' => 'customer', 'message' => 'Client not found in CRM.']);
+            return false;
+        }
+
+        if (!empty($client->zoho_id) && strtoupper(trim($client->zoho_id)) !== 'NULL') {
+            $contact = json_decode($zb->getContact(trim($client->zoho_id)));
+            if (!empty($contact) && isset($contact->code) && (int)$contact->code === 0 && isset($contact->contact->contact_id)) {
+                $zoho_contact_currency_code = $this->getZohoContactCurrencyCode($contact->contact, $currency_code);
+                if ($currency_code !== '' && $zoho_contact_currency_code !== '' && $zoho_contact_currency_code !== $currency_code) {
+                    $zoho_contact_name = !empty($contact->contact->contact_name) ? $contact->contact->contact_name : $client->company;
+                    $msg = 'CRM customer "' . $client->company . '" is ' . $currency_code . ', but mapped Zoho customer "' . $zoho_contact_name . '" is ' . $zoho_contact_currency_code . '.';
+                    if ($emit) $emit(['type' => 'error', 'step' => 'customer', 'message' => $msg]);
+                    return false;
+                }
+                return $contact->contact->contact_id;
+            }
+        }
+
+        $contactData = $this->createContactData($client->userid, $currency_code);
+        if (empty($contactData)) {
+            if ($emit) $emit(['type' => 'error', 'step' => 'customer', 'message' => 'Unable to prepare Zoho contact data.']);
+            return false;
+        }
+
+        $contactResponse = $zb->postContact(json_encode($contactData));
+        $contactResult = json_decode($contactResponse);
+
+        if (empty($contactResult) || !isset($contactResult->code) || (int)$contactResult->code !== 0 || !isset($contactResult->contact->contact_id)) {
+            $message = isset($contactResult->message) ? $contactResult->message : 'Unable to create customer in Zoho.';
+            if ($emit) $emit(['type' => 'error', 'step' => 'customer', 'message' => $message]);
+            return false;
+        }
+
+        $zohoContactId = $contactResult->contact->contact_id;
+        update_zoho_id('tblclients', 'userid', $client->userid, 'zoho_id', $zohoContactId);
+        return $zohoContactId;
+    }
+
+    /**
+     * Real-time Server-Sent Events (SSE) stream for posting a single invoice to Zoho Books
+     */
+    public function post_invoice_zoho_stream()
+    {
+        if (function_exists('apache_setenv')) {
+            @apache_setenv('no-gzip', 1);
+        }
+        @ini_set('zlib.output_compression', 0);
+        @ini_set('implicit_flush', 1);
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+        ob_implicit_flush(1);
+
+        header('Content-Type: text/event-stream; charset=UTF-8');
+        header('Cache-Control: no-cache, no-transform');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+
+        $emit = function ($data) {
+            echo "data: " . json_encode($data) . "\n\n";
+            if (ob_get_level() > 0) {
+                @ob_flush();
+            }
+            @flush();
+        };
+
+        $invoice_id = $this->input->get('invoice_id') ? $this->input->get('invoice_id') : $this->input->post('invoice_id');
+        if (empty($invoice_id)) {
+            $emit(['type' => 'error', 'step' => 'init', 'message' => 'Invoice ID is missing.']);
+            exit;
+        }
+
+        $where['type'] = 'invoice';
+        $where['tblinvoices.id'] = $invoice_id;
+        $invoices = $this->invoices_model->get('', $where);
+
+        if (empty($invoices)) {
+            $emit(['type' => 'error', 'step' => 'init', 'message' => 'Invoice #' . $invoice_id . ' not found in database.']);
+            exit;
+        }
+
+        $invoice = $invoices[0];
+        if (!empty($invoice['zoho_id']) && strtoupper(trim($invoice['zoho_id'])) !== 'NULL') {
+            $emit(['type' => 'error', 'step' => 'init', 'message' => 'This invoice has already been posted to Zoho Books (Zoho Invoice ID: ' . trim($invoice['zoho_id']) . ').']);
+            exit;
+        }
+
+        $client = $this->clients_model->get($invoice['clientid']);
+        if (empty($client)) {
+            $emit(['type' => 'error', 'step' => 'customer', 'message' => 'Customer for this invoice not found in database.']);
+            exit;
+        }
+
+        $client_company = !empty($client->company) ? $client->company : ('Client #' . $client->userid);
+        $inv_label = strip_tags((!empty($invoice['prefix']) ? $invoice['prefix'] : '') . $invoice['number']);
+        if ($inv_label === '') {
+            $inv_label = 'Invoice #' . $invoice_id;
+        }
+
+        $currency_code = $this->getInvoiceCurrencyCode($invoice);
+
+        $emit([
+            'type' => 'init',
+            'invoice_id' => $invoice_id,
+            'invoice_num' => $inv_label,
+            'client_name' => $client_company,
+            'amount' => number_format((float)$invoice['total'], 2),
+            'currency' => $currency_code,
+            'message' => 'Initializing ' . $inv_label . ' for ' . $client_company . ' (' . $currency_code . ' ' . number_format((float)$invoice['total'], 2) . ')'
+        ]);
+
+        $zb = new ZohoBooks();
+
+        // Step 1: Customer check / create
+        $emit([
+            'type' => 'step_start',
+            'step' => 'customer',
+            'message' => 'Checking Customer: ' . $client_company . '...'
+        ]);
+
+        $zoho_contact_id = $this->getOrCreateZohoContactIdInternal($client->userid, $zb, $currency_code, $emit);
+        if (empty($zoho_contact_id)) {
+            exit;
+        }
+
+        $emit([
+            'type' => 'step_done',
+            'step' => 'customer',
+            'zoho_id' => $zoho_contact_id,
+            'message' => 'Customer verified: ' . $client_company . ' (ID: ' . $zoho_contact_id . ')'
+        ]);
+
+        // Step 2: Invoice creation
+        $emit([
+            'type' => 'step_start',
+            'step' => 'invoice',
+            'message' => 'Preparing items and tax configuration for ' . $inv_label . '...'
+        ]);
+
+        if (!empty($client->vat)) {
+            $invoice['vat_reg_no'] = $client->vat;
+            $invoice['vat_treatment'] = "vat_registered";
+        } else {
+            $invoice['vat_reg_no'] = $client->vat;
+            $invoice['vat_treatment'] = "vat_not_registered";
+        }
+
+        $city = strtolower(trim((string)$client->city));
+        if ($city == "dubai") {
+            $invoice['place_of_supply'] = "DU";
+        } else if ($city == "abu dhabi") {
+            $invoice['place_of_supply'] = "AB";
+        } else if ($city == "sharjah") {
+            $invoice['place_of_supply'] = "SH";
+        } else if ($city == "ajman") {
+            $invoice['place_of_supply'] = "AJ";
+        } else if ($city == "fujairah") {
+            $invoice['place_of_supply'] = "FU";
+        } else if ($city == "ras al khaimah") {
+            $invoice['place_of_supply'] = "RA";
+        } else if ($city == "umm al quwain") {
+            $invoice['place_of_supply'] = "UM";
+        } else {
+            $invoice['place_of_supply'] = "DU";
+        }
+
+        $currency_error = $this->assertCurrencyMatchesClientDefault($client->userid, $invoice['currency'], 'Invoice');
+        if ($currency_error !== '') {
+            $emit(['type' => 'error', 'step' => 'invoice', 'message' => $currency_error]);
+            exit;
+        }
+
+        $invoice['clientid'] = $zoho_contact_id;
+
+        $emit([
+            'type' => 'step_update',
+            'step' => 'invoice',
+            'log_type' => 'info',
+            'message' => 'Posting invoice ' . $inv_label . ' to Zoho Books...'
+        ]);
+
+        $invoice_payload = $this->invoiceJson($invoice);
+        $invoice_data = $this->postZohoInvoice($zb, $invoice_payload);
+
+        if (empty($invoice_data) || !isset($invoice_data->code)) {
+            $emit(['type' => 'error', 'step' => 'invoice', 'message' => 'Invalid or empty response received from Zoho Books when creating invoice.']);
+            exit;
+        }
+
+        if ((int)$invoice_data->code === 0 && isset($invoice_data->invoice->invoice_id)) {
+            $zoho_inv_id = $invoice_data->invoice->invoice_id;
+            $this->assertZohoInvoiceCurrencyMatches($invoice, $invoice_data);
+
+            // Update items table
+            $this->db->where('rel_id', $invoice['id']);
+            $this->db->update('tblitems_in', ['zoho_id' => $zoho_inv_id]);
+
+            // Update invoice table
+            $this->db->where('id', $invoice['id']);
+            $this->db->update('tblinvoices', ['zoho_id' => $zoho_inv_id]);
+
+            $this->createInvoice_sent_zoho_ajax($zoho_inv_id);
+
+            $emit([
+                'type' => 'step_done',
+                'step' => 'invoice',
+                'zoho_id' => $zoho_inv_id,
+                'message' => 'Invoice ' . $inv_label . ' posted to Zoho Books successfully! (Zoho Invoice ID: ' . $zoho_inv_id . ')'
+            ]);
+
+            $emit([
+                'type' => 'complete',
+                'success' => true,
+                'zoho_id' => $zoho_inv_id,
+                'message' => 'Invoice ' . $inv_label . ' has been synchronized to Zoho Books successfully!'
+            ]);
+        } else {
+            $err_msg = isset($invoice_data->message) ? $invoice_data->message : 'Unable to create Zoho invoice.';
+            $emit(['type' => 'error', 'step' => 'invoice', 'message' => 'Zoho Error: ' . $err_msg]);
+        }
+        exit;
+    }
+
 
 }

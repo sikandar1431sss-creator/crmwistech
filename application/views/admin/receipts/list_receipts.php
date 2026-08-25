@@ -519,65 +519,22 @@ init_tail();
 <?php $this->load->view('admin/includes/zoho_post_progress_modal'); ?>
 <script>
     $(document).ready(function () {
-        $(".post_to_zoho").click(function (e) {
+        $(document).on('click', '.post_to_zoho', function (e) {
             e.preventDefault();
             var that = $(this);
-            if (that.hasClass('disabled')) {
+            if (that.hasClass('disabled') || that.prop('disabled')) {
                 return;
             }
             var receipt_id = $(this).attr('data_id');
-            if(receipt_id) {
-                openZohoPostProgress('Posting receipt to Zoho');
-                addZohoPostProgress('info', 'Preparing receipt #' + receipt_id + ' for Zoho.');
-                addZohoPostProgress('info', 'Validating customer, invoices, currency and bank account.');
-                addZohoPostProgress('info', 'Posting payment to Zoho Books. Keep this page open until it finishes.');
-                that.prop('disabled', true).addClass('disabled');
-                $.ajax({
-                    type: 'POST',
-                    url: "<?php echo admin_url('receipts/createReceipt_zoho_ajax'); ?>",
-                    data: {receipt_id: receipt_id},
-                    dataType: "html",
-                    success: function (response) {
-                        that.prop('disabled', false).removeClass('disabled');
-                        if (response == '1') {
-                            addZohoPostProgress('success', 'Receipt posted to Zoho successfully.');
-                            finishZohoPostProgress();
-                            alert_float('success', 'Receipt has been posted to zoho successfully.');
-                            that.removeAttr('data_id');
-                            //console.log(receipt_id);
-                            //setTimeout(function(){
-                               // window.location.replace("<?php echo admin_url('receipts/#'); ?>" + receipt_id);
-                               // window.location.reload("<?php echo admin_url('receipts/#'); ?>" + receipt_id);
-                            //}, 3000);
-                            /*
-                             that.html('<i class="fa fa-clipboard"> Posted');
-                             that.addClass('btn-default');
-                             that.removeClass('btn-success');*/
-
-                        } else {
-                            addZohoPostProgress('error', response || 'There is some problem to post this receipt.');
-                            finishZohoPostProgress();
-                            alert_float('danger', response || 'There is some problem to post this receipt.');
-                        }
-                    },
-                    error: function (data) {
-
-                        that.prop('disabled', false).removeClass('disabled');
-                        addZohoPostProgress('error', 'Connection lost or request failed before CRM received the final Zoho response.');
-                        finishZohoPostProgress();
-                        alert_float('danger', 'Connection lost or request failed before CRM received the final Zoho response.');
-                    }
-                });
-            }else{
-                openZohoPostProgress('Posting receipt to Zoho');
-                addZohoPostProgress('warning', 'This receipt already exists on Zoho.');
-                finishZohoPostProgress();
+            if (receipt_id) {
+                startZohoPostReceipt(receipt_id, that);
+            } else {
+                openZohoPostProgress('Posting Receipt to Zoho Books');
+                renderReceiptProgressSteps();
+                addZohoPostProgress('warning', 'This receipt already exists in Zoho Books.');
+                finishZohoPostProgress(false, 'This receipt already exists on Zoho.');
                 alert_float('warning', 'This receipt already exist on zoho.');
             }
-            $("#close_div").click(function (e) {
-                e.preventDefault();
-                $("#loading").addClass('hide');
-            });
         });
     });
 </script>
