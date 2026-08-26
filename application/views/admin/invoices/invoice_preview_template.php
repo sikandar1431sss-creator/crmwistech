@@ -12,8 +12,13 @@
             <hr class="hr-panel-heading hr-10"/>
             <?php foreach ($invoices_to_merge as $_inv) { ?>
                 <p>
-                    <a href="<?php echo admin_url('invoices/list_invoices/' . $_inv->id); ?>"
-                       target="_blank"><?php echo format_invoice_number($_inv->id); ?></a>
+                    <?php if (isset($_inv->type) && $_inv->type != "invoice") { ?>
+                        <a style="color:#cc6600;" href="<?php echo admin_url('invoices/list_invoices/' . $_inv->id); ?>"
+                           target="_blank"><?php echo format_invoice_number($_inv->id); ?></a>
+                    <?php } else { ?>
+                        <a href="<?php echo admin_url('invoices/list_invoices/' . $_inv->id); ?>"
+                           target="_blank"><?php echo format_invoice_number($_inv->id); ?></a>
+                    <?php } ?>
                     - <?php echo format_money($_inv->total, $_inv->symbol); ?>
                     <span class="pull-right text-<?php echo get_invoice_status_label($_inv->status); ?>">
          <?php echo format_invoice_status($_inv->status, '', false); ?>
@@ -272,6 +277,11 @@
                                } ?>">
                                 <i class="fa fa-plus-square"></i> <?php echo _l('payment'); ?></a>
                         <?php } ?>
+                        <?php if (isset($invoice->type) && $invoice->type == "performa") { ?>
+                            <a href="#" onclick="save_as_invoice(<?php echo $invoice->id; ?>); return false;"
+                               class="mleft10 pull-right btn btn-info">
+                                <i class="fa fa-exchange"></i> <?php echo _l('convert_performa_to_invoice'); ?></a>
+                        <?php } ?>
                     </div>
                 </div>
             </div>
@@ -468,4 +478,23 @@
     init_selectpicker();
     init_form_reminder();
     init_tabs_scrollable();
+
+    function save_as_invoice(id){
+        var request = $.ajax({
+            url: "<?php echo admin_url('receipts/convert_performa_invoices_to_tax_invoice/'); ?>",
+            method: "POST",
+            data: { invoice_id : id , type : "performa" },
+            dataType: "html"
+        });
+
+        request.done(function( msg ) {
+            if(msg){
+                window.location.replace("<?php echo admin_url('invoices/list_invoices#'); ?>" + id);
+            }
+        });
+
+        request.fail(function( jqXHR, textStatus ) {
+            alert( "Request failed: " + textStatus );
+        });
+    }
 </script>

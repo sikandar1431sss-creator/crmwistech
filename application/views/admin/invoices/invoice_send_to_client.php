@@ -13,9 +13,9 @@
                     <div class="col-md-12">
                         <div class="form-group">
                             <?php
-                                if($template_disabled){
+                                if(!empty($template_disabled)){
                                     echo '<div class="alert alert-danger">';
-                                    echo 'The email template <b><a href="'.admin_url('emails/email_template/'.$template_id).'" target="_blank">'.$template_system_name.'</a></b> is disabled. Click <a href="'.admin_url('emails/email_template/'.$template_id).'" target="_blank">here</a> to enable the email template in order to be sent successfully.';
+                                    echo 'The email template <b><a href="'.admin_url('emails/email_template/'.(!empty($template_id) ? $template_id : '')).'" target="_blank">'.(!empty($template_system_name) ? $template_system_name : '').'</a></b> is disabled. Click <a href="'.admin_url('emails/email_template/'.(!empty($template_id) ? $template_id : '')).'" target="_blank">here</a> to enable the email template in order to be sent successfully.';
                                     echo '</div>';
                                 }
                                 $selected = array();
@@ -43,8 +43,8 @@
                         </div>
                         <h5 class="bold"><?php echo _l('invoice_send_to_client_preview_template'); ?></h5>
                         <hr />
-                        <?php echo render_textarea('email_template_custom','',$template->message,array(),array(),'','tinymce-'.$invoice->id); ?>
-                        <?php echo form_hidden('template_name',$template_name); ?>
+                        <?php echo render_textarea('email_template_custom','',(isset($template) && is_object($template) && isset($template->message)) ? $template->message : '',array(),array(),'','tinymce-'.$invoice->id); ?>
+                        <?php echo form_hidden('template_name',isset($template_name) ? $template_name : ''); ?>
                     </div>
                 </div>
                 <?php if(count($invoice->attachments) > 0){ ?>

@@ -1,4 +1,7 @@
 <?php
+
+$invoice->total_left_to_pay = get_invoice_total_left_to_pay($invoice->id);
+
 if ($invoice->status == 6) { ?>
     <div class="alert alert-info">
         <?php echo _l('invoice_draft_status_info'); ?>
@@ -72,11 +75,32 @@ if ($invoice->status == 6) { ?>
                     echo '<i class="fa fa-tag" aria-hidden="true" data-toggle="tooltip" data-title="' . implode(', ', $tags) . '"></i>';
                 }
                 ?>
-                <a href="<?php echo admin_url('invoices/invoice/' . $invoice->id); ?>">
-               <span id="invoice-number">
-                  <?php echo format_invoice_number($invoice->id); ?>
-               </span>
-                </a>
+
+                <?php
+                if (isset($invoice->type) && $invoice->type == "invoice") {
+                    ?>
+                    <a href="<?php echo admin_url('invoices/invoice/' . $invoice->id); ?>">
+                       <span id="invoice-number">
+                          <?php echo format_invoice_number($invoice->id); ?>
+                       </span>
+                    </a>
+                    <?php if (!empty($invoice->pinv_reference)) { ?>
+                        &nbsp;
+                        <span id="pinv_reference">
+                          <?php echo 'Ref: PINV-00' . $invoice->pinv_reference; ?>
+                       </span>
+                    <?php } ?>
+                    <?php
+                } else {
+                    ?>
+                    <a style="color:#cc6600;" href="<?php echo admin_url('invoices/invoice/' . $invoice->id); ?>">
+                       <span id="invoice-number">
+                          <?php echo format_invoice_number($invoice->id); ?>
+                       </span>
+                    </a>
+                    <?php
+                }
+                ?>
             </h4>
             <address>
                 <?php echo format_organization_info(); ?>
@@ -119,9 +143,19 @@ if ($invoice->status == 6) { ?>
                     <?php echo get_project_name_by_id($invoice->project_id); ?>
                 </p>
             <?php } ?>
-            <?php $pdf_custom_fields = get_custom_fields('invoice', array('show_on_pdf' => 1));
-            foreach ($pdf_custom_fields as $field) {
+            <?php 
+            $custom_fields = get_custom_fields('invoice');
+            foreach ($custom_fields as $field) {
                 $value = get_custom_field_value($invoice->id, $field['id'], 'invoice');
+                if ($value == '') {
+                    $clean_name = $field['name'];
+                    $slug = $field['slug'];
+                    if (isset($invoice->$clean_name) && (string)$invoice->$clean_name !== '') {
+                        $value = $invoice->$clean_name;
+                    } elseif (isset($invoice->$slug) && (string)$invoice->$slug !== '') {
+                        $value = $invoice->$slug;
+                    }
+                }
                 if ($value == '') {
                     continue;
                 } ?>

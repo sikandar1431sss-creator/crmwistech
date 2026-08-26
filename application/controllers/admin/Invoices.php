@@ -456,34 +456,100 @@
             $invoice->date = _d($invoice->date);
             $invoice->duedate = !empty($invoice->duedate) ? _d($invoice->duedate) : '';
 
+            $template_name = 'invoice-send-to-client';
+            if ($invoice->sent == 1) {
+                $template_name = 'invoice-already-send';
+            }
+
+            $template_name = do_action('after_invoice_sent_template_statement', $template_name);
+
+            $contact = $this->clients_model->get_contact(get_primary_contact_user_id($invoice->clientid));
+            $email = '';
+            if ($contact) {
+                $email = $contact->email;
+            }
+
+            $data['template'] = get_email_template_for_sending($template_name, $email);
+            if (!$data['template']) {
+                $data['template'] = new stdClass();
+                $data['template']->message = '';
+                $data['template']->subject = '';
+            }
+
             $data['invoices_to_merge'] = $this->invoices_model->check_for_merge_invoice($invoice->clientid, $id);
             if (!is_array($data['invoices_to_merge'])) {
                 $data['invoices_to_merge'] = [];
             }
 
+            $data['template_name'] = $template_name;
+            $this->db->where('slug', $template_name);
+            $this->db->where('language', 'english');
+            $template_result = $this->db->get('tblemailtemplates')->row();
+
+            $data['template_system_name'] = $template_result ? $template_result->name : '';
+            $data['template_id'] = $template_result ? $template_result->emailtemplateid : '';
+
+            $data['template_disabled'] = false;
+            if (total_rows('tblemailtemplates', ['slug' => $data['template_name'], 'active' => 0]) > 0) {
+                $data['template_disabled'] = true;
+            }
+
             // Check for recorded payments
             $this->load->model('payments_model');
+            $data['members'] = $this->staff_model->get('', ['active' => 1]);
+            if (!is_array($data['members'])) {
+                $data['members'] = [];
+            }
             $data['payments'] = $this->payments_model->get_invoice_payments($id);
             if (!is_array($data['payments'])) {
                 $data['payments'] = [];
             }
             $invoice->payments = $data['payments'];
+            $data['activity'] = $this->invoices_model->get_invoice_activity($id);
+            if (!is_array($data['activity'])) {
+                $data['activity'] = [];
+            }
+            $data['totalNotes'] = total_rows('tblnotes', ['rel_id' => $id, 'rel_type' => 'invoice']);
+            $data['invoice_recurring_invoices'] = $this->invoices_model->get_invoice_recurring_invoices($id);
+            if (!is_array($data['invoice_recurring_invoices'])) {
+                $data['invoice_recurring_invoices'] = [];
+            }
+
+            $data['applied_credits'] = $this->credit_notes_model->get_applied_invoice_credits($id);
+            if (!is_array($data['applied_credits'])) {
+                $data['applied_credits'] = [];
+            }
 
             $data['credits_available'] = 0;
-            $this->load->model('currencies_model');
-            $data['customer_currency'] = $this->currencies_model->get($invoice->currency);
-            if (!$data['customer_currency']) {
-                $data['customer_currency'] = $this->currencies_model->get_base_currency();
-            }
+            $data['open_credits'] = [];
+
             // This data is used only when credit can be applied to invoice
             if (credits_can_be_applied_to_invoice($invoice->status)) {
                 $data['credits_available'] = $this->credit_notes_model->total_remaining_credits_by_customer($invoice->clientid);
+                if ($data['credits_available'] > 0) {
+                    $data['open_credits'] = $this->credit_notes_model->get_open_credits($invoice->clientid);
+                    if (!is_array($data['open_credits'])) {
+                        $data['open_credits'] = [];
+                    }
+                }
+            }
+
+            $this->load->model('currencies_model');
+            $data['customer_currency'] = $this->currencies_model->get($invoice->currency);
+            if (!$data['customer_currency']) {
+                $customer_currency_id = $this->clients_model->get_customer_default_currency($invoice->clientid);
+                if ($customer_currency_id != 0) {
+                    $data['customer_currency'] = $this->currencies_model->get($customer_currency_id);
+                }
+            }
+            if (!$data['customer_currency']) {
+                $data['customer_currency'] = $this->currencies_model->get_base_currency();
             }
 
             $data['invoice'] = $invoice;
 
             try {
-                echo $this->load->view('admin/invoices/invoice_preview_ajax', $data, true);
+                echo $this->load->view('admin/invoices/invoice_preview_template', $data, true);
             } catch (Throwable $e) {
                 log_message(
                     'error',

@@ -330,9 +330,9 @@ if ($invoice->sale_agent) {
     $staff = get_staff_info_signature($invoice->addedfrom);
 }
 
-if ($staff->email_signature <> null) {
+if ($staff && !empty($staff->email_signature)) {
     $toolcopy = '';
-    if (!empty($staff->email_signature_image) && $staff->email_signature_image <> null) {
+    if (!empty($staff->email_signature_image)) {
         $toolcopy .= pdf_email_signature($staff->staffid, $staff->email_signature_image) . "<br/>";
     }
 
@@ -341,7 +341,9 @@ if ($staff->email_signature <> null) {
     $toolcopy .= "________________<br/>";
     $toolcopy .= $staff->email_signature;
     $pdf->ln(10);
-    $pdf->Image($cimg, '30', '', 35, '', '', '', 'L', false, '', '5', false, false, 0);
+    if ($cimg) {
+        $pdf->Image($cimg, '30', '', 35, '', '', '', 'L', false, '', '5', false, false, 0);
+    }
     $pdf->writeHTML($toolcopy, true, 0, true, 0);
 }
 
