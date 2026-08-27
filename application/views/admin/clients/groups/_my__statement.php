@@ -75,7 +75,12 @@
                         if (isset($data['receipt_status']) && $data['receipt_status'] == 'verified') {
                             $color = '#008000';
                         }
-                        echo _l('statement_receipt_details', array('<a style="color:' . $color . '" href="' . admin_url('receipts#/' . $data['receipt_id']) . '" target="_blank">' . '#' . $data['receipt_num'] . '</a>', '')) . $data['receipt_note'];
+                        $receiptNum = !empty($data['receipt_num']) ? $data['receipt_num'] : $data['receipt_id'];
+                        $receiptNote = !empty($data['receipt_note']) ? ' ' . $data['receipt_note'] : '';
+                        echo _l('statement_receipt_details', array('<a style="color:' . $color . '" href="' . admin_url('receipts#/' . $data['receipt_id']) . '" target="_blank">' . '#' . $receiptNum . '</a>', '')) . $receiptNote;
+                    } else if (isset($data['payment_id'])) {
+                        $invNum = isset($data['invoice_number']) ? $data['invoice_number'] : (isset($data['payment_invoice_id']) ? format_invoice_number($data['payment_invoice_id']) : '');
+                        echo _l('statement_payment_details', array('<a href="' . admin_url('payments/payment/' . $data['payment_id']) . '" target="_blank">' . '#' . $data['payment_id'] . '</a>', $invNum));
                     }
                     ?>
                 </td>
@@ -96,6 +101,8 @@
                     <?php
                     if (isset($data['receipt_id'])) {
                         echo _format_number($data['receipt_amount']);
+                    } else if (isset($data['payment_id'])) {
+                        echo _format_number($data['payment_total']);
                     }
                     ?>
                 </td>
@@ -107,6 +114,8 @@
                         }
                     } else if (isset($data['receipt_id'])) {
                         $tmpBeginningBalance = ($tmpBeginningBalance - $data['receipt_amount']);
+                    } else if (isset($data['payment_id'])) {
+                        $tmpBeginningBalance = ($tmpBeginningBalance - $data['payment_total']);
                     } else if (isset($data['pinvoice_id'])) {
                         if ($data['pinvoice_status'] != 5) {
                             $tmpBeginningBalance = ($tmpBeginningBalance + $data['pinvoice_amount']);

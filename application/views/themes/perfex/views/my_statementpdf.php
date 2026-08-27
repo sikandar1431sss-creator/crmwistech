@@ -115,18 +115,16 @@ foreach ($statement['result'] as $data) {
         if (isset($data['receipt_status']) && $data['receipt_status'] == 'verified') {
             $color = '#008000';
         }
-        $tblhtml .= _l('statement_receipt_details', array('<a style="color:' . $color . '" href="' . admin_url('receipts#/' . $data['receipt_id']) . '" target="_blank">' . '#' . $data['receipt_num'] . '</a>', '')) . $data['receipt_note'];
-    } /*if (isset($data['invoice_id'])) {
-        $tblhtml .= _l('statement_invoice_details', array(
-            format_invoice_number($data['invoice_id']),
-            _d($data['duedate'])
-        ));
+        $receiptNum = !empty($data['receipt_num']) ? $data['receipt_num'] : $data['receipt_id'];
+        $receiptNote = !empty($data['receipt_note']) ? ' ' . $data['receipt_note'] : '';
+        $tblhtml .= _l('statement_receipt_details', array('<a style="color:' . $color . '" href="' . admin_url('receipts#/' . $data['receipt_id']) . '" target="_blank">' . '#' . $receiptNum . '</a>', '')) . $receiptNote;
     } else if (isset($data['payment_id'])) {
+        $invNum = isset($data['invoice_number']) ? $data['invoice_number'] : (isset($data['payment_invoice_id']) ? format_invoice_number($data['payment_invoice_id']) : '');
         $tblhtml .= _l('statement_payment_details', array(
             '#' . $data['payment_id'],
-            format_invoice_number($data['payment_invoice_id'])
+            $invNum
         ));
-    }*/ elseif (isset($data['credit_note_id'])) {
+    } elseif (isset($data['credit_note_id'])) {
         $tblhtml .= _l('statement_credit_note_details', format_credit_note_number($data['credit_note_id']));
     } elseif (isset($data['credit_id'])) {
         $tblhtml .= _l('statement_credits_applied_details', array(
@@ -139,7 +137,11 @@ foreach ($statement['result'] as $data) {
     $tblhtml .= '</td>
     <td align="right">';
     if (isset($data['invoice_id'])) {
-        $tblhtml .= _format_number($data['invoice_amount']);
+        if ($data['invoice_status'] != 5) {
+            $tblhtml .= _format_number($data['invoice_amount']);
+        } else {
+            $tblhtml .= '<strike>' . _format_number($data['invoice_amount']) . '</strike>';
+        }
     } else if (isset($data['credit_note_id'])) {
         $tblhtml .= _format_number($data['credit_note_amount']);
     }
@@ -148,14 +150,20 @@ foreach ($statement['result'] as $data) {
 
     if (isset($data['receipt_id'])) {
         $tblhtml .= _format_number($data['receipt_amount']);
+    } else if (isset($data['payment_id'])) {
+        $tblhtml .= _format_number($data['payment_total']);
     }
 
     $tblhtml .= '</td>
             <td align="right">';
     if (isset($data['invoice_id'])) {
-        $tmpBeginningBalance = ($tmpBeginningBalance + $data['invoice_amount']);
+        if ($data['invoice_status'] != 5) {
+            $tmpBeginningBalance = ($tmpBeginningBalance + $data['invoice_amount']);
+        }
     } else if (isset($data['receipt_id'])) {
         $tmpBeginningBalance = ($tmpBeginningBalance - $data['receipt_amount']);
+    } else if (isset($data['payment_id'])) {
+        $tmpBeginningBalance = ($tmpBeginningBalance - $data['payment_total']);
     } else if (isset($data['credit_note_id'])) {
         $tmpBeginningBalance = ($tmpBeginningBalance - $data['credit_note_amount']);
     }

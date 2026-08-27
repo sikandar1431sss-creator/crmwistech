@@ -75,112 +75,137 @@ class Statement_model extends CRM_Model
         $sql_credits_applied .= ' AND ' . $sqlDateCreditsAplied;
         $credits_applied = $this->db->query($sql_credits_applied)->result_array();
 
-        // Replace error ambigious column in where clause
-        /*$sqlDatePayments = str_replace('date', 'tblinvoicepaymentrecords.date', $sqlDate);
-
-        $sql_payments = 'SELECT
-        tblinvoicepaymentrecords.id as payment_id,
-        tblinvoicepaymentrecords.date as date,
-        concat(tblinvoicepaymentrecords.date, \' \', RIGHT(tblinvoicepaymentrecords.daterecorded,LOCATE(\' \',tblinvoicepaymentrecords.daterecorded) - 3)) as tmp_date,
-        tblinvoicepaymentrecords.invoiceid as payment_invoice_id,
-        tblinvoicepaymentrecords.amount as payment_total
-        FROM tblinvoicepaymentrecords
-        JOIN tblinvoices ON tblinvoices.id = tblinvoicepaymentrecords.invoiceid
-        WHERE ' . $sqlDatePayments . ' AND tblinvoices.clientid = ' . $customer_id . '
-        ORDER by tblinvoicepaymentrecords.date DESC';*/
-
         $sqlDatePayments = str_replace('date', 'tblinvoicepaymentrecords.date', $sqlDate);
         $sqlDateReceipts = str_replace('date', 'tblreciepts.receipt_date', $sqlDate);
 
-        $sql_payments = 'SELECT
+        // Receipts
+        $sql_receipts = 'SELECT
         tblreciepts.*,
-        concat(tblreciepts.receipt_date, \' \', RIGHT(tblreciepts.receipt_date,LOCATE(\' \',tblreciepts.receipt_date) - 3)) as tmp_date,
         tblreciepts.receipt_date as date
         FROM tblreciepts
         WHERE ' . $sqlDateReceipts . ' AND tblreciepts.receipt_client_id = ' . $customer_id . '
         ORDER by tblreciepts.receipt_date DESC';
 
-        $payments = $this->db->query($sql_payments)->result_array();
+        $receipts = $this->db->query($sql_receipts)->result_array();
+
+        // Standalone invoice payments not attached to any receipt
+        $sql_standalone_payments = 'SELECT
+        tblinvoicepaymentrecords.id as payment_id,
+        tblinvoicepaymentrecords.date as date,
+        tblinvoicepaymentrecords.invoiceid as payment_invoice_id,
+        tblinvoicepaymentrecords.amount as payment_total,
+        tblinvoicepaymentrecords.note as payment_note,
+        tblinvoices.number as invoice_number
+        FROM tblinvoicepaymentrecords
+        JOIN tblinvoices ON tblinvoices.id = tblinvoicepaymentrecords.invoiceid
+        WHERE tblinvoices.clientid = ' . $customer_id . '
+        AND ' . $sqlDatePayments . '
+        AND (tblinvoicepaymentrecords.receipt_id = 0 OR tblinvoicepaymentrecords.receipt_id NOT IN (SELECT receipt_id FROM tblreciepts WHERE receipt_client_id = ' . $customer_id . '))
+        ORDER by tblinvoicepaymentrecords.date DESC';
+
+        $standalone_payments = $this->db->query($sql_standalone_payments)->result_array();
 
         // merge results
-        $merged = array_merge($invoices, $payments, $credit_notes, $credits_applied);
+        $merged = array_merge($invoices, $receipts, $standalone_payments, $credit_notes, $credits_applied);
 
-        // sort by date
+        // sort by date and priority (Invoices -> Credit Notes -> Receipts -> Payments -> Credits Applied)
         usort($merged, function ($a, $b) {
-            // fake date select sorting
-            return strtotime($a['tmp_date']) - strtotime($b['tmp_date']);
+            $time_a = strtotime($a['date']);
+            $time_b = strtotime($b['date']);
+            if ($time_a !== $time_b) {
+                return ($time_a < $time_b) ? -1 : 1;
+            }
+            $type_order_a = isset($a['invoice_id']) ? 1 : (isset($a['credit_note_id']) ? 2 : (isset($a['receipt_id']) ? 3 : (isset($a['payment_id']) ? 4 : 5)));
+            $type_order_b = isset($b['invoice_id']) ? 1 : (isset($b['credit_note_id']) ? 2 : (isset($b['receipt_id']) ? 3 : (isset($b['payment_id']) ? 4 : 5)));
+            if ($type_order_a !== $type_order_b) {
+                return ($type_order_a < $type_order_b) ? -1 : 1;
+            }
+            $id_a = isset($a['invoice_id']) ? $a['invoice_id'] : (isset($a['receipt_id']) ? $a['receipt_id'] : (isset($a['payment_id']) ? $a['payment_id'] : (isset($a['credit_note_id']) ? $a['credit_note_id'] : (isset($a['credit_id']) ? $a['credit_id'] : 0))));
+            $id_b = isset($b['invoice_id']) ? $b['invoice_id'] : (isset($b['receipt_id']) ? $b['receipt_id'] : (isset($b['payment_id']) ? $b['payment_id'] : (isset($b['credit_note_id']) ? $b['credit_note_id'] : (isset($b['credit_id']) ? $b['credit_id'] : 0))));
+            if ($id_a != $id_b) {
+                return ($id_a < $id_b) ? -1 : 1;
+            }
+            return 0;
         });
 
         // Define final result variable
-        $result = [];
+        $result = array();
         // Store in result array key
         $result['result'] = $merged;
 
         // Invoiced amount during the period
-        $result['invoiced_amount'] = $this->db->query('SELECT
+        $row_invoiced = $this->db->query('SELECT
         SUM(tblinvoices.total) as invoiced_amount
         FROM tblinvoices
         WHERE clientid = ' . $customer_id . '
-        AND ' . $sqlDate . ' AND status != 5 and status != 6')
-            ->row()->invoiced_amount;
+        AND ' . $sqlDate . ' AND status != 5 and status != 6')->row();
 
-        if ($result['invoiced_amount'] === null) {
-            $result['invoiced_amount'] = 0;
-        }
+        $result['invoiced_amount'] = ($row_invoiced && isset($row_invoiced->invoiced_amount) && $row_invoiced->invoiced_amount !== null) ? $row_invoiced->invoiced_amount : 0;
 
-        $result['credit_notes_amount'] = $this->db->query('SELECT
+        $row_credit_notes = $this->db->query('SELECT
         SUM(tblcreditnotes.total) as credit_notes_amount
         FROM tblcreditnotes
         WHERE clientid = ' . $customer_id . '
-        AND ' . $sqlDate . ' AND status != 3')
-            ->row()->credit_notes_amount;
+        AND ' . $sqlDate . ' AND status != 3')->row();
 
-        if ($result['credit_notes_amount'] === null) {
-            $result['credit_notes_amount'] = 0;
-        }
+        $result['credit_notes_amount'] = ($row_credit_notes && isset($row_credit_notes->credit_notes_amount) && $row_credit_notes->credit_notes_amount !== null) ? $row_credit_notes->credit_notes_amount : 0;
 
         $result['invoiced_amount'] = $result['invoiced_amount'] - $result['credit_notes_amount'];
 
-        // Amount paid during the period
-        $result['amount_paid'] = $this->db->query('SELECT
-        SUM(tblinvoicepaymentrecords.amount) as amount_paid
+        // Amount paid during the period (Receipts + Standalone payments)
+        $row_receipts = $this->db->query('SELECT
+        COALESCE(SUM(tblreciepts.receipt_amount),0) as receipts_paid
+        FROM tblreciepts
+        WHERE tblreciepts.receipt_client_id = ' . $customer_id . '
+        AND ' . $sqlDateReceipts)->row();
+        $receipts_amount_paid = ($row_receipts && isset($row_receipts->receipts_paid)) ? $row_receipts->receipts_paid : 0;
+
+        $row_standalone = $this->db->query('SELECT
+        COALESCE(SUM(tblinvoicepaymentrecords.amount),0) as standalone_paid
         FROM tblinvoicepaymentrecords
         JOIN tblinvoices ON tblinvoices.id = tblinvoicepaymentrecords.invoiceid
-        WHERE ' . $sqlDatePayments . ' AND tblinvoices.clientid = ' . $customer_id)
-            ->row()->amount_paid;
+        WHERE tblinvoices.clientid = ' . $customer_id . '
+        AND ' . $sqlDatePayments . '
+        AND (tblinvoicepaymentrecords.receipt_id = 0 OR tblinvoicepaymentrecords.receipt_id NOT IN (SELECT receipt_id FROM tblreciepts WHERE receipt_client_id = ' . $customer_id . '))')->row();
+        $standalone_amount_paid = ($row_standalone && isset($row_standalone->standalone_paid)) ? $row_standalone->standalone_paid : 0;
 
-        if ($result['amount_paid'] === null) {
-            $result['amount_paid'] = 0;
-        }
+        $result['amount_paid'] = $receipts_amount_paid + $standalone_amount_paid;
 
-        // Beginning balance is all invoices amount before the FROM date - payments received before FROM date
-        $result['beginning_balance'] = $this->db->query('
-            SELECT (
-            COALESCE(SUM(tblinvoices.total),0) - (
-            (
-            SELECT COALESCE(SUM(tblinvoicepaymentrecords.amount),0)
+        // Beginning balance is all invoices amount before the FROM date - payments/receipts received before FROM date
+        $row_inv_before = $this->db->query('SELECT
+            COALESCE(SUM(tblinvoices.total), 0) as total
+            FROM tblinvoices
+            WHERE clientid = ' . $customer_id . '
+            AND date < "' . $from . '"
+            AND status != 6
+            AND status != 5')->row();
+        $invoices_before = ($row_inv_before && isset($row_inv_before->total)) ? $row_inv_before->total : 0;
+
+        $row_rec_before = $this->db->query('SELECT
+            COALESCE(SUM(tblreciepts.receipt_amount), 0) as total
+            FROM tblreciepts
+            WHERE receipt_client_id = ' . $customer_id . '
+            AND receipt_date < "' . $from . '"')->row();
+        $receipts_before = ($row_rec_before && isset($row_rec_before->total)) ? $row_rec_before->total : 0;
+
+        $row_stand_before = $this->db->query('SELECT
+            COALESCE(SUM(tblinvoicepaymentrecords.amount), 0) as total
             FROM tblinvoicepaymentrecords
             JOIN tblinvoices ON tblinvoices.id = tblinvoicepaymentrecords.invoiceid
-            WHERE tblinvoicepaymentrecords.date < "' . $from . '"
-            AND tblinvoices.clientid=' . $customer_id . '
-            ) + (
-                SELECT COALESCE(SUM(tblcreditnotes.total),0)
-                FROM tblcreditnotes
-                WHERE tblcreditnotes.date < "' . $from . '"
-                AND tblcreditnotes.clientid=' . $customer_id . '
-            )
-        )
-            )
-            as beginning_balance FROM tblinvoices
-            WHERE date < "' . $from . '"
-            AND clientid = ' . $customer_id . '
-            AND status != 6
-            AND status != 5')
-              ->row()->beginning_balance;
+            WHERE tblinvoices.clientid = ' . $customer_id . '
+            AND tblinvoicepaymentrecords.date < "' . $from . '"
+            AND (tblinvoicepaymentrecords.receipt_id = 0 OR tblinvoicepaymentrecords.receipt_id NOT IN (SELECT receipt_id FROM tblreciepts WHERE receipt_client_id = ' . $customer_id . '))')->row();
+        $standalone_before = ($row_stand_before && isset($row_stand_before->total)) ? $row_stand_before->total : 0;
 
-        if ($result['beginning_balance'] === null) {
-            $result['beginning_balance'] = 0;
-        }
+        $row_cn_before = $this->db->query('SELECT
+            COALESCE(SUM(tblcreditnotes.total), 0) as total
+            FROM tblcreditnotes
+            WHERE clientid = ' . $customer_id . '
+            AND date < "' . $from . '"
+            AND status != 3')->row();
+        $credit_notes_before = ($row_cn_before && isset($row_cn_before->total)) ? $row_cn_before->total : 0;
+
+        $result['beginning_balance'] = $invoices_before - ($receipts_before + $standalone_before + $credit_notes_before);
 
         $dec = get_decimal_places();
 
@@ -237,19 +262,19 @@ class Statement_model extends CRM_Model
             $i = 0;
             foreach ($send_to as $contact_id) {
                 if ($contact_id != '') {
-                    $this->emails_model->add_attachment([
+                    $this->emails_model->add_attachment(array(
                             'attachment' => $attach,
                             'filename'   => $pdf_file_name . '.pdf',
                             'type'       => 'application/pdf',
-                        ]);
+                    ));
 
                     $contact      = $this->clients_model->get_contact($contact_id);
-                    $merge_fields = [];
+                    $merge_fields = array();
                     $merge_fields = array_merge(
                         $merge_fields,
                         get_client_contact_merge_fields(
                             $statement['client']->userid,
-                        $contact_id
+                            $contact_id
                         )
                     );
 

@@ -169,32 +169,35 @@
                                                         }
 
                                                     } else if (isset($data['receipt_id'])) {
-                                                        if (isset($data['receipt_status']) && $data['receipt_status'] == 'verified') {
-                                                            $color = '#008000';
-                                                        }
-                                                        echo _l('statement_receipt_details', array('<a style="color:' . $color . '" href="' . admin_url('receipts#/' . $data['receipt_id']) . '" target="_blank">' . '#' . $data['receipt_num'] . '</a>', '')) . $data['receipt_note'];
-                                                    }
-
-                                                    /*if(isset($data['invoice_id'])) {
-                                                        echo _l('statement_invoice_details',array('<a href="'.admin_url('invoices/list_invoices/'.$data['invoice_id']).'" target="_blank">'.format_invoice_number($data['invoice_id']).'</a>',_d($data['duedate'])));
-                                                    } else if(isset($data['payment_id'])){
-                                                        echo _l('statement_payment_details',array('<a href="'.admin_url('payments/payment/'.$data['payment_id']).'" target="_blank">'.'#'.$data['payment_id'].'</a>',format_invoice_number($data['payment_invoice_id'])));
-                                                    } */else if(isset($data['credit_note_id'])) {
-                                                        echo _l('statement_credit_note_details',array('<a href="'.admin_url('credit_notes/list_credit_notes/'.$data['credit_note_id']).'" target="_blank">'.format_credit_note_number($data['credit_note_id']).'</a>'));
-                                                    } else if(isset($data['credit_id'])) {
-                                                        echo _l('statement_credits_applied_details',array(
-                                                                '<a href="'.admin_url('credit_notes/list_credit_notes/'.$data['credit_applied_credit_note_id']).'" target="_blank">'.format_credit_note_number($data['credit_applied_credit_note_id']).'</a>',
-                                                                _format_number($data['credit_amount']),
-                                                                format_invoice_number($data['credit_invoice_id'])
-                                                            )
-                                                        );
-                                                    }
+                                                         if (isset($data['receipt_status']) && $data['receipt_status'] == 'verified') {
+                                                             $color = '#008000';
+                                                         }
+                                                         $receiptNum = !empty($data['receipt_num']) ? $data['receipt_num'] : $data['receipt_id'];
+                                                         $receiptNote = !empty($data['receipt_note']) ? ' ' . $data['receipt_note'] : '';
+                                                         echo _l('statement_receipt_details', array('<a style="color:' . $color . '" href="' . admin_url('receipts#/' . $data['receipt_id']) . '" target="_blank">' . '#' . $receiptNum . '</a>', '')) . $receiptNote;
+                                                     } else if(isset($data['payment_id'])){
+                                                         $invNum = isset($data['invoice_number']) ? $data['invoice_number'] : (isset($data['payment_invoice_id']) ? format_invoice_number($data['payment_invoice_id']) : '');
+                                                         echo _l('statement_payment_details',array('<a href="'.admin_url('payments/payment/'.$data['payment_id']).'" target="_blank">'.'#'.$data['payment_id'].'</a>',$invNum));
+                                                     } else if(isset($data['credit_note_id'])) {
+                                                         echo _l('statement_credit_note_details',array('<a href="'.admin_url('credit_notes/list_credit_notes/'.$data['credit_note_id']).'" target="_blank">'.format_credit_note_number($data['credit_note_id']).'</a>'));
+                                                     } else if(isset($data['credit_id'])) {
+                                                         echo _l('statement_credits_applied_details',array(
+                                                                 '<a href="'.admin_url('credit_notes/list_credit_notes/'.$data['credit_applied_credit_note_id']).'" target="_blank">'.format_credit_note_number($data['credit_applied_credit_note_id']).'</a>',
+                                                                 _format_number($data['credit_amount']),
+                                                                 format_invoice_number($data['credit_invoice_id'])
+                                                             )
+                                                         );
+                                                     }
                                                     ?>
                                                 </td>
                                                 <td class="text-right">
                                                     <?php
                                                     if(isset($data['invoice_id'])) {
-                                                        echo _format_number($data['invoice_amount']);
+                                                         if ($data['invoice_status'] != 5) {
+                                                             echo _format_number($data['invoice_amount']);
+                                                         } else {
+                                                             echo '<strike>' . _format_number($data['invoice_amount']) . '</strike>';
+                                                         }
                                                     } else if(isset($data['credit_note_id'])) {
                                                         echo _format_number($data['credit_note_amount']);
                                                     }
@@ -204,16 +207,22 @@
                                                     <?php
                                                     if (isset($data['receipt_id'])) {
                                                         echo _format_number($data['receipt_amount']);
-                                                    }
+                                                    } else if(isset($data['payment_id'])) {
+                                                         echo _format_number($data['payment_total']);
+                                                     }
                                                     ?>
                                                 </td>
                                                 <td class="text-right">
                                                     <?php
                                                     if(isset($data['invoice_id'])) {
-                                                        $tmpBeginningBalance = ($tmpBeginningBalance + $data['invoice_amount']);
+                                                         if ($data['invoice_status'] != 5) {
+                                                             $tmpBeginningBalance = ($tmpBeginningBalance + $data['invoice_amount']);
+                                                         }
                                                     }  else if (isset($data['receipt_id'])) {
                                                         $tmpBeginningBalance = ($tmpBeginningBalance - $data['receipt_amount']);
-                                                    }  else if(isset($data['credit_note_id'])) {
+                                                    } else if (isset($data['payment_id'])) {
+                                                         $tmpBeginningBalance = ($tmpBeginningBalance - $data['payment_total']);
+                                                     } else if(isset($data['credit_note_id'])) {
                                                         $tmpBeginningBalance = ($tmpBeginningBalance - $data['credit_note_amount']);
                                                     }
                                                     if(!isset($data['credit_id'])){
