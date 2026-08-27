@@ -199,16 +199,14 @@ class Receipts_model extends CRM_Model
             return false;
         }
 
-        $withdraw = '';
-        $advance = '';
-        if (isset($data['use_advance'])) {
-            $withdraw = $data['use_advance'];
+        $withdraw = 0;
+        $advance = 0;
+        if (isset($data['use_advance']) && is_numeric($data['use_advance'])) {
+            $withdraw = (float)$data['use_advance'];
         }
-        if (isset($data['use_advance'])) {
-            $advance = $data['add_advance'];
+        if (isset($data['add_advance']) && is_numeric($data['add_advance'])) {
+            $advance = (float)$data['add_advance'];
         }
-        //$withdraw = $data['use_advance'];
-        //$advance = $data['add_advance'];
 
         $owner = $this->session->userdata['staff_user_id'];
 
@@ -222,13 +220,13 @@ class Receipts_model extends CRM_Model
             'created_by' => $owner,
         ];
 
-        if (isset($data['previous_advance_entry']) && ($data['previous_advance_entry'] > 0)) {
+        $this->load->model('cashadvance_model');
 
+        if (isset($data['previous_advance_entry']) && ($data['previous_advance_entry'] > 0)) {
             if (!$this->cashadvance_model->updateData($data['previous_advance_entry'], $table)) {
                 return false;
             }
-
-        } else {
+        } elseif ($advance > 0 || $withdraw > 0) {
             $this->db->insert('tblcashadvance', $table);
         }
 

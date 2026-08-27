@@ -118,6 +118,7 @@ $csrf = array(
                                         Bank Transfer
                                     </option>
                                      <option value="Stripe" <?= ($receipts->receipt_type == 'Stripe') ? 'selected' : ''; ?> >
+
                                         Stripe
                                     </option>
                                 </select>
@@ -161,14 +162,14 @@ $csrf = array(
                                 <?php
                             }
                             ?>
-                            <input type="hidden" id="use_advance" name="data[use_advance]" class="form-control"
-                                   value="<?= $used_advance; ?>">
-                            <input type="hidden" id="add_advance" name="data[add_advance]" class="form-control"
-                                   value="<?= $added_advance; ?>">
-                            <input type="hidden" id="add_advance" name="data[previous_advance_entry]"
-                                   class="form-control"
-                                   value="<?= $previous_advance_id; ?>">
                         </div>
+                        <input type="hidden" id="use_advance" name="data[use_advance]" class="form-control"
+                               value="<?= $used_advance; ?>">
+                        <input type="hidden" id="add_advance" name="data[add_advance]" class="form-control"
+                               value="<?= $added_advance; ?>">
+                        <input type="hidden" id="previous_advance_entry" name="data[previous_advance_entry]"
+                               class="form-control"
+                               value="<?= $previous_advance_id; ?>">
                         <div id="bank_dropdown">
                             <?php
                             if ($receipts->receipt_type == 'Cheque' || $receipts->receipt_type == 'Bank Transfer') {
@@ -530,15 +531,15 @@ $csrf = array(
 
 	                if (showAlert && typeof alert_float === 'function') {
 	                    alert_float('warning', message);
+                    }
+
+                    return false;
                 }
 
-                return false;
+                $error.hide().text('');
+                $("#savePayments").prop('disabled', false);
+                return true;
             }
-
-            $error.hide().text('');
-            $("#savePayments").prop('disabled', false);
-            return true;
-        }
 
         function selectReceiptCurrencyFromBank(bankCode) {
             if (!validateReceiptBankCurrency(true)) {
@@ -549,12 +550,14 @@ $csrf = array(
                 return;
             }
 
-            loadClientInvoices();
+            if ($('#invoices_data').children().length === 0) {
+                loadClientInvoices();
+            }
         }
 
-	        function refreshReceiptBankCurrencyValidation(enforceDisable) {
-	            validateReceiptBankCurrency(false, enforceDisable);
-	        }
+        function refreshReceiptBankCurrencyValidation(enforceDisable) {
+            validateReceiptBankCurrency(false, enforceDisable);
+        }
 
         function updateReceiptCurrencyNotice(response) {
             var $notice = $("#receipt_currency_notice");
@@ -707,7 +710,6 @@ $csrf = array(
         html += '   </div>';
         html += '</div>';
 
-
         html += '<div class="col-md-3">';
         html += '   <div class="form-group"><label for="date" class="control-label"><small class="req text-danger">*</small>Bank</label>';
         html += '           <input required type="text" id="SlipNo" name="data[bank_name]" class="form-control" value="">';
@@ -762,7 +764,11 @@ $csrf = array(
 
 	        $("#receipt_currency").change(function () {
 	            updateReceiptCurrencyDisplay();
-	            enforceCustomerCurrency(loadClientInvoices);
+	            if ($('#invoices_data').children().length === 0) {
+	                enforceCustomerCurrency(loadClientInvoices);
+	            } else {
+	                enforceCustomerCurrency();
+	            }
 	        });
 
         $(document).on('change', '#deposit_to', function () {
