@@ -40,6 +40,12 @@ class Receipts_model extends CRM_Model
         if (isset($data['bank_name'])) {
             $bank_name = $data['bank_name'];
         }
+        if (isset($data['bank'])) {
+            $deposit_bank = $data['bank'];
+        }
+        if (empty($bank_name) && !empty($deposit_bank) && function_exists('get_receipt_bank_name')) {
+            $bank_name = get_receipt_bank_name($deposit_bank);
+        }
 
         if (isset($data['owner']) && $data['owner'] != "") {
             $owner = $data['owner'];
@@ -258,7 +264,13 @@ class Receipts_model extends CRM_Model
         $this->db->select('');
         $this->db->from('tblreciepts');
         $this->db->where(['receipt_id' => $id]);
-        return $this->db->get()->row();
+        $receipt = $this->db->get()->row();
+        if ($receipt && function_exists('get_receipt_bank_name')) {
+            if (empty($receipt->receipt_bank) && !empty($receipt->deposit_bank)) {
+                $receipt->receipt_bank = get_receipt_bank_name($receipt);
+            }
+        }
+        return $receipt;
     }
 
     /**

@@ -158,12 +158,14 @@ $receipt_currency = !empty($receipts->receipt_currency_symbol)
                                     <?php
                                 }
                                 ?>
+                                <?php if (!empty($receipts->receipt_slip_no)) { ?>
                                 <p class="no-mbot">
                                          <span class="bold">
                                             <?php echo _l('slip_number'); ?>:
                                          </span>
                                     <?php echo $receipts->receipt_slip_no; ?>
                                 </p>
+                                <?php } ?>
                                 <?php
                                 if ($cashAdvance <> null) {
                                     if ($cashAdvance->amount > 0) {
@@ -186,30 +188,42 @@ $receipt_currency = !empty($receipts->receipt_currency_symbol)
                                 ?>
                             </div>
                             <div class="col-sm-6 text-right">
+                                <?php 
+                                $bank_name = get_receipt_bank_name($receipts);
+                                if (!empty($bank_name)) { ?>
                                 <p class="no-mbot">
                                          <span class="bold">
                                             <?php echo _l('bank_info'); ?>:
                                          </span>
-                                    <?php echo $receipts->receipt_bank; ?>
+                                    <?php echo $bank_name; ?>
                                 </p>
+                                <?php } ?>
+                                <?php if (!empty($receipts->receipt_transaction_no)) { ?>
                                 <p class="no-mbot">
                                          <span class="bold">
                                             <?php echo _l('receipt_trnxn_no'); ?>:
                                          </span>
                                     <?php echo $receipts->receipt_transaction_no; ?>
                                 </p>
+                                <?php } ?>
+                                <?php if (!empty($receipts->receipt_note)) { ?>
                                 <p class="no-mbot">
                                          <span class="bold">
                                             <?php echo _l('receipt_note'); ?>:
                                          </span>
                                     <?php echo $receipts->receipt_note; ?>
                                 </p>
+                                <?php } ?>
+                                <?php if (!empty($staff)) { 
+                                    $staff_name = trim($staff->firstname . " " . $staff->lastname);
+                                    if (!empty($staff_name)) { ?>
                                 <p class="no-mbot">
                                          <span class="bold">
                                             <?php echo _l('invoice_select_owner'); ?>:
                                          </span>
-                                    <?php echo $staff->firstname . " " . $staff->lastname; ?>
+                                    <?php echo $staff_name; ?>
                                 </p>
+                                <?php } } ?>
                             </div>
                         </div>
                         <div class="row">

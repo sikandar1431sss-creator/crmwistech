@@ -44,6 +44,9 @@ class Receipts_model extends CRM_Model
         if (isset($data['bank'])) {
             $deposit_bank = $data['bank'];
         }
+        if (empty($bank_name) && !empty($deposit_bank)) {
+            $bank_name = get_receipt_bank_name($deposit_bank);
+        }
 
         if (isset($data['owner']) && $data['owner'] != "") {
             $owner = $data['owner'];
@@ -119,6 +122,9 @@ class Receipts_model extends CRM_Model
         }
         if (isset($data['bank'])) {
             $deposit_bank = $data['bank'];
+        }
+        if (empty($bank_name) && !empty($deposit_bank)) {
+            $bank_name = get_receipt_bank_name($deposit_bank);
         }
 
         if (isset($data['owner']) && $data['owner'] != "") {
@@ -327,11 +333,16 @@ class Receipts_model extends CRM_Model
         $this->db->where(['receipt_id' => $id]);
         $receipt = $this->db->get()->row();
 
-        if ($receipt && function_exists('get_safe_currency_symbol')) {
-            $receipt->receipt_currency_symbol = get_safe_currency_symbol(
-                $receipt->receipt_currency_code,
-                $receipt->receipt_currency_symbol
-            );
+        if ($receipt) {
+            if (empty($receipt->receipt_bank) && !empty($receipt->deposit_bank)) {
+                $receipt->receipt_bank = get_receipt_bank_name($receipt);
+            }
+            if (function_exists('get_safe_currency_symbol')) {
+                $receipt->receipt_currency_symbol = get_safe_currency_symbol(
+                    $receipt->receipt_currency_code,
+                    $receipt->receipt_currency_symbol
+                );
+            }
         }
 
         return $receipt;

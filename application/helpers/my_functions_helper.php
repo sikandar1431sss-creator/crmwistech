@@ -723,18 +723,65 @@ function get_receipt_deposit_bank($code, $include_inactive = true)
     }
 
     foreach (get_receipt_deposit_banks(true) as $bank) {
-        if ($bank['code'] === $code) {
+        if (
+            $bank['code'] === $code
+            || (isset($bank['bank_account_id']) && (string)$bank['bank_account_id'] === $code)
+            || (isset($bank['account_id']) && (string)$bank['account_id'] === $code)
+            || (isset($bank['name']) && strcasecmp($bank['name'], $code) === 0)
+            || (isset($bank['zoho_name']) && strcasecmp($bank['zoho_name'], $code) === 0)
+        ) {
             return $bank;
         }
     }
 
     foreach (get_receipt_legacy_deposit_banks(true) as $bank) {
-        if ($bank['code'] === $code) {
+        if (
+            $bank['code'] === $code
+            || (isset($bank['account_id']) && (string)$bank['account_id'] === $code)
+            || (isset($bank['name']) && strcasecmp($bank['name'], $code) === 0)
+            || (isset($bank['zoho_name']) && strcasecmp($bank['zoho_name'], $code) === 0)
+        ) {
             return $bank;
         }
     }
 
     return null;
+}
+
+function get_receipt_bank_name($receipt)
+{
+    if (is_array($receipt)) {
+        $receipt = (object)$receipt;
+    }
+
+    if (!is_object($receipt)) {
+        if (is_string($receipt) && trim($receipt) !== '') {
+            $bank = get_receipt_deposit_bank($receipt, true);
+            return ($bank && !empty($bank['name'])) ? $bank['name'] : trim($receipt);
+        }
+        return '';
+    }
+
+    $receipt_bank = isset($receipt->receipt_bank) ? trim((string)$receipt->receipt_bank) : '';
+    $deposit_bank = isset($receipt->deposit_bank) ? trim((string)$receipt->deposit_bank) : '';
+
+    if ($receipt_bank !== '') {
+        $bank = get_receipt_deposit_bank($receipt_bank, true);
+        if ($bank && !empty($bank['name'])) {
+            return $bank['name'];
+        }
+        return $receipt_bank;
+    }
+
+    if ($deposit_bank !== '') {
+        $bank = get_receipt_deposit_bank($deposit_bank, true);
+        if ($bank && !empty($bank['name'])) {
+            return $bank['name'];
+        }
+        return $deposit_bank;
+    }
+
+    return '';
 }
 
 function get_receipt_deposit_bank_label($bank)
@@ -1146,7 +1193,7 @@ function get_receipt_merge_fields($receipt_id, $payment_id = false)
     $fields['{receipt_link}'] = site_url('admin/receipts/details/' . $receipt_id);
     $fields['{receipt_number}'] = format_receipt_number($receipt->receipt_num);
     $fields['{receipt_chequeDate}'] = _d($receipt->receipt_cheque_date);
-    $fields['{receipt_bank}'] = _d($receipt->receipt_bank);
+    $fields['{receipt_bank}'] = _d(get_receipt_bank_name($receipt));
     $fields['{receipt_cheque_num}'] = _d($receipt->receipt_cheque_num);
     $fields['{receipt_date}'] = _d($receipt->receipt_date);
     $fields['{receipt_status}'] = format_invoice_status($receipt->receipt_status, '', false);

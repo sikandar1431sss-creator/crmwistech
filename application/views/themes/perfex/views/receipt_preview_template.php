@@ -67,7 +67,8 @@ $item_width = 38;
 $item_width = get_option('show_tax_per_item') == 0 ? $item_width + 15 : $item_width;
 
 
-$tblmemo = '    <table width="100%">
+if (!empty($receipts->receipt_note)) {
+    $tblmemo = '    <table width="100%">
                         <tbody>
                         <tr>
                             <th align="left" width="10%"><strong>Memo: </strong></th>
@@ -76,12 +77,23 @@ $tblmemo = '    <table width="100%">
                         </tbody>
                         ';
 
-$tblmemo .= '        </table>';
-$pdf->writeHTML($tblmemo, true, false, false, false, '');
+    $tblmemo .= '        </table>';
+    $pdf->writeHTML($tblmemo, true, false, false, false, '');
+}
 
 $cheque_date = "";
-if ($receipts->receipt_cheque_date != "0000-00-00") {
-    $cheque_date = ', ' . $receipts->receipt_cheque_date;
+if (!empty($receipts->receipt_cheque_date) && $receipts->receipt_cheque_date != "0000-00-00") {
+    $cheque_date = (!empty($receipts->receipt_cheque_num) ? ', ' : '') . date('d-m-Y', strtotime($receipts->receipt_cheque_date));
+}
+
+$cheque_info = trim($receipts->receipt_cheque_num . $cheque_date);
+if (empty($cheque_info)) {
+    $cheque_info = '-';
+}
+
+$pdf_bank_name = get_receipt_bank_name($receipts);
+if (empty($pdf_bank_name)) {
+    $pdf_bank_name = '-';
 }
 
 $tblD = '    <table width="100%" border="1" bgcolor="#fff" cellspacing="0" cellpadding="8" >
@@ -95,8 +107,8 @@ $tblD = '    <table width="100%" border="1" bgcolor="#fff" cellspacing="0" cellp
                           <tbody>
                         <tr>
                             <th align="center">' . $receipts->receipt_type . '  </th>
-                           <th align="center"> ' . $receipts->receipt_cheque_num . $cheque_date . '</th>
-                           <th align="center">' . $receipts->receipt_bank . ' </th>
+                           <th align="center"> ' . $cheque_info . '</th>
+                           <th align="center">' . $pdf_bank_name . ' </th>
                         </tr>  
                         </tbody>
                         ';
