@@ -1316,38 +1316,30 @@ class Receipts extends Admin_controller
                 }
             }
             $discount_type = 'entity_level';
-            if($invoice_data['vat_treatment'] == 'vat_registered'){
+            if ($invoice_data['vat_treatment'] == 'vat_registered') {
                 $discount_type = 'item_level';
-            }else if($discount_type_flag == 1){
+            } else if ($discount_type_flag == 1) {
                 $discount_type = 'item_level';
             }
-            if($invoice_data['discount_type'] != "before_tax"){
+            if ($invoice_data['discount_type'] != "before_tax") {
                 $discount_type = 'entity_level';
             }
-           // $discount_type = 'item_level';
-            $place_of_supply = "";
-            $tax_treatment = "";
 
-            if(strtotime($invoice_data['date']) >= strtotime('2018-01-01')){
-                $place_of_supply =  $invoice_data['place_of_supply'];
-                $tax_treatment = $invoice_data['vat_treatment'];
-            }
+            $place_of_supply = isset($invoice_data['place_of_supply']) ? $invoice_data['place_of_supply'] : '';
+            $tax_treatment = isset($invoice_data['vat_treatment']) ? $invoice_data['vat_treatment'] : '';
 
             $invoice_currency_code = $this->getInvoiceCurrencyCode($invoice_data);
             $zoho_currency = $this->getZohoCurrencyByCode($invoice_currency_code);
 
-
             $invoice = [
-
                 "customer_id" => $invoice_data['clientid'],
                 "_crm_invoice_number" => $this->getCrmInvoiceNumber($invoice_data),
+                "_cached_place_of_supply" => $place_of_supply,
+                "_cached_tax_treatment" => $tax_treatment,
                 "reference_number" => $invoice_data['id'],
                 "date" => $invoice_data['date'],
                 "due_date" => $invoice_data['date'],
-                /* "due_date" => $invoice_data['duedate'],*/
-               // "discount" => $invoice_data['discount_total'],
                 "discount" => $invoice_data['discount_total'],
-                // "is_discount_before_tax" => ($invoice_data['discount_calculation'] == "before_tax") ? true : false,
                 "is_discount_before_tax" => ($invoice_data['discount_type'] == "before_tax") ? true : false,
                 "discount_type" => $discount_type,
                 "is_inclusive_tax" => false,
@@ -1363,7 +1355,6 @@ class Receipts extends Admin_controller
                 "reason" => " ",
                 "expense_id" => " ",
                 "line_items" => $line_items
-
             ];
 
             if ($invoice_currency_code !== '') {
@@ -1378,13 +1369,17 @@ class Receipts extends Admin_controller
                 $invoice['exchange_rate'] = $zoho_currency['exchange_rate'];
             }
 
-            if ($this->shouldSendZohoVatFields() && $place_of_supply !== '' && $tax_treatment !== '') {
+            if ($place_of_supply !== '') {
                 $invoice['place_of_supply'] = $place_of_supply;
+            }
+
+            if ($tax_treatment !== '') {
                 $invoice['tax_treatment'] = $tax_treatment;
             }
 
-            // Zoho Books rejects manual invoice_number when auto-numbering is enabled.
-            // CRM invoice number is still sent as reference_number above.
+            if (!empty($invoice_data['vat_reg_no'])) {
+                $invoice['tax_reg_no'] = $invoice_data['vat_reg_no'];
+            }
         }
 
         return $invoice;
@@ -1402,18 +1397,58 @@ class Receipts extends Admin_controller
             : '';
         unset($invoice['_crm_invoice_number']);
 
+        $cached_place_of_supply = isset($invoice['_cached_place_of_supply'])
+            ? $invoice['_cached_place_of_supply']
+            : (isset($invoice['place_of_supply']) ? $invoice['place_of_supply'] : '');
+        $cached_tax_treatment = isset($invoice['_cached_tax_treatment'])
+            ? $invoice['_cached_tax_treatment']
+            : (isset($invoice['tax_treatment']) ? $invoice['tax_treatment'] : '');
+        unset($invoice['_cached_place_of_supply']);
+        unset($invoice['_cached_tax_treatment']);
+
         $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
 
+        // Handle auto-number error
         if ($this->isZohoAutoNumberInvoiceError($invoice_data) && isset($invoice['invoice_number'])) {
             unset($invoice['invoice_number']);
             $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
         }
 
+        // Handle invoice number required error
         if ($this->isZohoInvoiceNumberRequiredError($invoice_data) && $crm_invoice_number !== '') {
             $invoice['invoice_number'] = $crm_invoice_number;
             $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
 
             if ($this->isZohoAutoNumberInvoiceError($invoice_data)) {
+                unset($invoice['invoice_number']);
+                $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
+            }
+        }
+
+        // Handle Invalid Element place_of_supply / tax_treatment / tax_reg_no
+        if ($this->isZohoPlaceOfSupplyInvalidError($invoice_data) && (isset($invoice['place_of_supply']) || isset($invoice['tax_treatment']) || isset($invoice['tax_reg_no']))) {
+            unset($invoice['place_of_supply']);
+            unset($invoice['tax_treatment']);
+            unset($invoice['tax_reg_no']);
+            $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
+
+            if ($this->isZohoAutoNumberInvoiceError($invoice_data) && isset($invoice['invoice_number'])) {
+                unset($invoice['invoice_number']);
+                $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
+            }
+        }
+
+        // Handle Missing / Required place_of_supply error
+        if ($this->isZohoPlaceOfSupplyMissingError($invoice_data) && empty($invoice['place_of_supply'])) {
+            $invoice['place_of_supply'] = $cached_place_of_supply !== '' ? $cached_place_of_supply : 'DU';
+            if ($cached_tax_treatment !== '') {
+                $invoice['tax_treatment'] = $cached_tax_treatment;
+            } else {
+                $invoice['tax_treatment'] = 'vat_not_registered';
+            }
+            $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
+
+            if ($this->isZohoAutoNumberInvoiceError($invoice_data) && isset($invoice['invoice_number'])) {
                 unset($invoice['invoice_number']);
                 $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
             }
@@ -1452,6 +1487,37 @@ class Receipts extends Admin_controller
 
         return strpos($message, 'invoice number field is blank') !== false
             || strpos($message, 'enter a valid invoice number') !== false;
+    }
+
+    protected function isZohoPlaceOfSupplyInvalidError($invoice_data)
+    {
+        if (empty($invoice_data) || empty($invoice_data->message)) {
+            return false;
+        }
+
+        $message = strtolower($invoice_data->message);
+
+        return strpos($message, 'invalid element place_of_supply') !== false
+            || strpos($message, 'invalid element tax_treatment') !== false
+            || strpos($message, 'invalid element tax_reg_no') !== false
+            || strpos($message, 'place of supply is not applicable') !== false
+            || strpos($message, 'place_of_supply is not applicable') !== false;
+    }
+
+    protected function isZohoPlaceOfSupplyMissingError($invoice_data)
+    {
+        if (empty($invoice_data) || empty($invoice_data->message)) {
+            return false;
+        }
+
+        $message = strtolower($invoice_data->message);
+
+        return strpos($message, 'place of supply is mandatory') !== false
+            || strpos($message, 'place_of_supply is mandatory') !== false
+            || strpos($message, 'enter a valid place of supply') !== false
+            || strpos($message, 'provide a place of supply') !== false
+            || strpos($message, 'place of supply is required') !== false
+            || (strpos($message, 'place of supply') !== false && strpos($message, 'invalid') !== false);
     }
 
     /**
@@ -1515,44 +1581,39 @@ class Receipts extends Admin_controller
             $primary_first_name = "";
             $primary_last_name = "";
             $primary_email = "";
-            $tax_treatment = "vat_not_registered";
 
             $contacts = [];
 
             if (count($client_contacts) > 0) {
 
-                foreach ($client_contacts as $contact) {
+                foreach ($client_contacts as $contact_person) {
 
-                    if ($contact['is_primary']) {
-                        $primary_first_name = $contact['firstname'];
-                        $primary_last_name = $contact['lastname'];
-                        $primary_email = $contact['email'];
+                    if ($contact_person['is_primary']) {
+                        $primary_first_name = $contact_person['firstname'];
+                        $primary_last_name = $contact_person['lastname'];
+                        $primary_email = $contact_person['email'];
                     }
 
                     $contacts[] = [
-
-                        "salutation" => substr($contact["title"],20),
-                        "first_name" => $contact['firstname'],
-                        "last_name" => $contact['lastname'],
-                        "email" => $contact['email'],
-                        "phone" => $contact['phonenumber'],
-                        "mobile" => $contact['email'],
-                        "designation" => $contact["title"],
+                        "salutation" => substr($contact_person["title"], 20),
+                        "first_name" => $contact_person['firstname'],
+                        "last_name" => $contact_person['lastname'],
+                        "email" => $contact_person['email'],
+                        "phone" => $contact_person['phonenumber'],
+                        "mobile" => $contact_person['email'],
+                        "designation" => $contact_person["title"],
                         "department" => "",
                         "skype" => "",
-                       /* "is_primary_contact" => ($contact['is_primary']) ? 'true' : 'false',*/
-                        "enable_portal" => ($contact['is_primary']) ? true : false
+                        "enable_portal" => ($contact_person['is_primary']) ? true : false
                     ];
                 }
             }
 
-            if (!empty($client->vat)) {
-                $tax_treatment = "vat_registered";
-            }
+            $tax_treatment = get_client_tax_treatment($client);
+            $place_of_contact = get_client_place_of_supply($client);
 
             $currency_code = normalize_receipt_currency_code($currency_code);
             $contact = [
-
                 "contact_name" => $client->company,
                 "company_name" => $client->company,
                 "first_name" => $primary_first_name,
@@ -1561,6 +1622,7 @@ class Receipts extends Admin_controller
                 "phone" => $client->phonenumber,
                 "facebook" => "",
                 "twitter" => "",
+                "tax_treatment" => $tax_treatment,
                 "billing_address" => [
                     "attention" => $client->company,
                     "address" => strip_tags($client->address),
@@ -1588,6 +1650,14 @@ class Receipts extends Admin_controller
                 "contact_persons" => $contacts
             ];
 
+            if ($place_of_contact !== '') {
+                $contact['place_of_contact'] = $place_of_contact;
+            }
+
+            if (!empty($client->vat)) {
+                $contact['tax_reg_no'] = $client->vat;
+            }
+
             if ($currency_code !== '') {
                 $contact['currency_code'] = $currency_code;
 
@@ -1597,19 +1667,30 @@ class Receipts extends Admin_controller
                 }
             }
 
-            if ($this->shouldSendZohoVatFields()) {
-                $contact['tax_reg_no'] = $client->vat;
-                $contact['tax_treatment'] = $tax_treatment;
-            }
-
         }
 
         return $contact;
     }
 
+    protected function postZohoContact(ZohoBooks $zb, $contactData)
+    {
+        $contactResponse = $zb->postContact(json_encode($contactData));
+        $contactResult = json_decode($contactResponse);
+
+        if ($contactResult && isset($contactResult->code) && ((int)$contactResult->code === 8 || (isset($contactResult->message) && strpos(strtolower($contactResult->message), 'invalid element') !== false))) {
+            unset($contactData['tax_reg_no']);
+            unset($contactData['tax_treatment']);
+            unset($contactData['place_of_contact']);
+            $contactResponse = $zb->postContact(json_encode($contactData));
+            $contactResult = json_decode($contactResponse);
+        }
+
+        return $contactResult;
+    }
+
     protected function shouldSendZohoVatFields()
     {
-        return (int)get_option('zoho_enable_vat_fields') === 1;
+        return true;
     }
 
     protected function getOrCreateZohoContactId($client_id, ZohoBooks $zb, $currency_code = '')
@@ -1622,7 +1703,7 @@ class Receipts extends Admin_controller
             exit;
         }
 
-        if (!empty($client->zoho_id)) {
+        if (!empty($client->zoho_id) && strtoupper(trim($client->zoho_id)) !== 'NULL') {
             $contact = json_decode(
                 $zb->getContact(trim($client->zoho_id))
             );
@@ -1664,11 +1745,7 @@ class Receipts extends Admin_controller
             exit;
         }
 
-        $contactResponse = $zb->postContact(
-            json_encode($contactData)
-        );
-
-        $contactResult = json_decode($contactResponse);
+        $contactResult = $this->postZohoContact($zb, $contactData);
 
         if (
             empty($contactResult)
@@ -2785,32 +2862,9 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
                     $client = $this->clients_model->get($invoice['clientid']);
 
                     if ($client <> null) {
-                        if (!empty($client->vat)) {
-                            $invoice['vat_reg_no'] = $client->vat;
-                            $invoice['vat_treatment'] = "vat_registered";
-                        } else {
-                            $invoice['vat_reg_no'] = $client->vat;
-                            $invoice['vat_treatment'] = "vat_not_registered";
-                        }
-
-
-                        if ($client->city == "Dubai" || $client->city == "dubai") {
-                            $invoice['place_of_supply'] = "DU";
-                        } else if ($client->city == "Abu Dhabi" || $client->city == "abu dhabi") {
-                            $invoice['place_of_supply'] = "AB";
-                        } else if ($client->city == "Sharjah" || $client->city == "sharjah") {
-                            $invoice['place_of_supply'] = "SH";
-                        } else if ($client->city == "Ajman" || $client->city == "ajman") {
-                            $invoice['place_of_supply'] = "AJ";
-                        } else if ($client->city == "Fujairah" || $client->city == "fujairah") {
-                            $invoice['place_of_supply'] = "FU";
-                        } else if ($client->city == "Ras Al Khaimah" || $client->city == "ras al khaimah") {
-                            $invoice['place_of_supply'] = "RA";
-                        } else if ($client->city == "Umm Al Quwain" || $client->city == "umm al quwain") {
-                            $invoice['place_of_supply'] = "UM";
-                        } else {
-                            $invoice['place_of_supply'] = "DU";
-                        }
+                        $invoice['vat_treatment'] = get_client_tax_treatment($client);
+                        $invoice['place_of_supply'] = get_client_place_of_supply($client);
+                        $invoice['vat_reg_no'] = !empty($client->vat) ? $client->vat : '';
                         $currency_error = $this->assertCurrencyMatchesClientDefault(
                             $client->userid,
                             isset($invoice['currency']) ? $invoice['currency'] : '',
@@ -2898,32 +2952,9 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
                     $client = $this->clients_model->get($invoice['clientid']);
 
                     if ($client <> null) {
-                        if (!empty($client->vat)) {
-                            $invoice['vat_reg_no'] = $client->vat;
-                            $invoice['vat_treatment'] = "vat_registered";
-                        } else {
-                            $invoice['vat_reg_no'] = $client->vat;
-                            $invoice['vat_treatment'] = "vat_not_registered";
-                        }
-
-
-                        if ($client->city == "Dubai" || $client->city == "dubai") {
-                            $invoice['place_of_supply'] = "DU";
-                        } else if ($client->city == "Abu Dhabi" || $client->city == "abu dhabi") {
-                            $invoice['place_of_supply'] = "AB";
-                        } else if ($client->city == "Sharjah" || $client->city == "sharjah") {
-                            $invoice['place_of_supply'] = "SH";
-                        } else if ($client->city == "Ajman" || $client->city == "ajman") {
-                            $invoice['place_of_supply'] = "AJ";
-                        } else if ($client->city == "Fujairah" || $client->city == "fujairah") {
-                            $invoice['place_of_supply'] = "FU";
-                        } else if ($client->city == "Ras Al Khaimah" || $client->city == "ras al khaimah") {
-                            $invoice['place_of_supply'] = "RA";
-                        } else if ($client->city == "Umm Al Quwain" || $client->city == "umm al quwain") {
-                            $invoice['place_of_supply'] = "UM";
-                        } else {
-                            $invoice['place_of_supply'] = "DU";
-                        }
+                        $invoice['vat_treatment'] = get_client_tax_treatment($client);
+                        $invoice['place_of_supply'] = get_client_place_of_supply($client);
+                        $invoice['vat_reg_no'] = !empty($client->vat) ? $client->vat : '';
                         $currency_error = $this->assertCurrencyMatchesClientDefault(
                             $client->userid,
                             isset($invoice['currency']) ? $invoice['currency'] : '',
@@ -3395,32 +3426,9 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
             return false;
         }
 
-        if (!empty($client->vat)) {
-            $invoice['vat_reg_no'] = $client->vat;
-            $invoice['vat_treatment'] = "vat_registered";
-        } else {
-            $invoice['vat_reg_no'] = $client->vat;
-            $invoice['vat_treatment'] = "vat_not_registered";
-        }
-
-        $city = strtolower(trim((string)$client->city));
-        if ($city == "dubai") {
-            $invoice['place_of_supply'] = "DU";
-        } else if ($city == "abu dhabi") {
-            $invoice['place_of_supply'] = "AB";
-        } else if ($city == "sharjah") {
-            $invoice['place_of_supply'] = "SH";
-        } else if ($city == "ajman") {
-            $invoice['place_of_supply'] = "AJ";
-        } else if ($city == "fujairah") {
-            $invoice['place_of_supply'] = "FU";
-        } else if ($city == "ras al khaimah") {
-            $invoice['place_of_supply'] = "RA";
-        } else if ($city == "umm al quwain") {
-            $invoice['place_of_supply'] = "UM";
-        } else {
-            $invoice['place_of_supply'] = "DU";
-        }
+        $invoice['vat_treatment'] = get_client_tax_treatment($client);
+        $invoice['place_of_supply'] = get_client_place_of_supply($client);
+        $invoice['vat_reg_no'] = !empty($client->vat) ? $client->vat : '';
 
         $currency_code = $this->getInvoiceCurrencyCode($invoice);
         $currency_error = $this->assertCurrencyMatchesClientDefault($client->userid, $invoice['currency'], 'Invoice');
@@ -3497,8 +3505,7 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
             return false;
         }
 
-        $contactResponse = $zb->postContact(json_encode($contactData));
-        $contactResult = json_decode($contactResponse);
+        $contactResult = $this->postZohoContact($zb, $contactData);
 
         if (empty($contactResult) || !isset($contactResult->code) || (int)$contactResult->code !== 0 || !isset($contactResult->contact->contact_id)) {
             $message = isset($contactResult->message) ? $contactResult->message : 'Unable to create customer in Zoho.';
@@ -3612,32 +3619,9 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
             'message' => 'Preparing items and tax configuration for ' . $inv_label . '...'
         ]);
 
-        if (!empty($client->vat)) {
-            $invoice['vat_reg_no'] = $client->vat;
-            $invoice['vat_treatment'] = "vat_registered";
-        } else {
-            $invoice['vat_reg_no'] = $client->vat;
-            $invoice['vat_treatment'] = "vat_not_registered";
-        }
-
-        $city = strtolower(trim((string)$client->city));
-        if ($city == "dubai") {
-            $invoice['place_of_supply'] = "DU";
-        } else if ($city == "abu dhabi") {
-            $invoice['place_of_supply'] = "AB";
-        } else if ($city == "sharjah") {
-            $invoice['place_of_supply'] = "SH";
-        } else if ($city == "ajman") {
-            $invoice['place_of_supply'] = "AJ";
-        } else if ($city == "fujairah") {
-            $invoice['place_of_supply'] = "FU";
-        } else if ($city == "ras al khaimah") {
-            $invoice['place_of_supply'] = "RA";
-        } else if ($city == "umm al quwain") {
-            $invoice['place_of_supply'] = "UM";
-        } else {
-            $invoice['place_of_supply'] = "DU";
-        }
+        $invoice['vat_treatment'] = get_client_tax_treatment($client);
+        $invoice['place_of_supply'] = get_client_place_of_supply($client);
+        $invoice['vat_reg_no'] = !empty($client->vat) ? $client->vat : '';
 
         $currency_error = $this->assertCurrencyMatchesClientDefault($client->userid, $invoice['currency'], 'Invoice');
         if ($currency_error !== '') {

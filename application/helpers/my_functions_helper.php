@@ -1182,3 +1182,85 @@ function get_customer_city($client_id)
         return '';
     }
 }
+
+/**
+ * Resolve client Place of Supply (UAE Emirate code)
+ *
+ * @param object|array $client
+ * @return string (DU, AB, SH, AJ, FU, RA, UM or empty for overseas)
+ */
+function get_client_place_of_supply($client)
+{
+    if (empty($client)) {
+        return 'DU';
+    }
+
+    if (is_array($client)) {
+        $client = (object)$client;
+    }
+
+    $country_id = isset($client->country) ? (int)$client->country : 0;
+    // Country 234 in tblcountries is United Arab Emirates
+    if ($country_id > 0 && $country_id !== 234) {
+        return '';
+    }
+
+    $city = isset($client->city) ? strtolower(trim((string)$client->city)) : '';
+    $state = isset($client->state) ? strtolower(trim((string)$client->state)) : '';
+    $address = isset($client->address) ? strtolower(trim((string)$client->address)) : '';
+    $combined = $city . ' ' . $state . ' ' . $address;
+
+    if (strpos($combined, 'abu dhabi') !== false || strpos($combined, 'abudhabi') !== false || strpos($combined, 'al ain') !== false || strpos($combined, 'alain') !== false || strpos($combined, 'mussafah') !== false || strpos($combined, 'musaffah') !== false) {
+        return 'AB';
+    }
+    if (strpos($combined, 'sharjah') !== false || strpos($combined, 'shj') !== false) {
+        return 'SH';
+    }
+    if (strpos($combined, 'ajman') !== false) {
+        return 'AJ';
+    }
+    if (strpos($combined, 'fujairah') !== false || strpos($combined, 'dibba') !== false) {
+        return 'FU';
+    }
+    if (strpos($combined, 'ras al khaimah') !== false || strpos($combined, 'rak') !== false || strpos($combined, 'rasalkhaimah') !== false) {
+        return 'RA';
+    }
+    if (strpos($combined, 'umm al quwain') !== false || strpos($combined, 'uaq') !== false || strpos($combined, 'ummalquwain') !== false) {
+        return 'UM';
+    }
+
+    return 'DU';
+}
+
+/**
+ * Resolve client Tax Treatment for Zoho Books
+ *
+ * @param object|array $client
+ * @return string (vat_registered, vat_not_registered, gcc_vat_registered, gcc_vat_not_registered, non_gcc)
+ */
+function get_client_tax_treatment($client)
+{
+    if (empty($client)) {
+        return 'vat_not_registered';
+    }
+
+    if (is_array($client)) {
+        $client = (object)$client;
+    }
+
+    $has_vat = !empty($client->vat);
+    $country_id = isset($client->country) ? (int)$client->country : 0;
+
+    // GCC countries in tblcountries: Bahrain(18), Kuwait(118), Oman(166), Qatar(179), Saudi Arabia(194)
+    $gcc_country_ids = [18, 118, 166, 179, 194];
+
+    if ($country_id > 0 && $country_id !== 234) {
+        if (in_array($country_id, $gcc_country_ids)) {
+            return $has_vat ? 'gcc_vat_registered' : 'gcc_vat_not_registered';
+        }
+        return 'non_gcc';
+    }
+
+    return $has_vat ? 'vat_registered' : 'vat_not_registered';
+}
+
