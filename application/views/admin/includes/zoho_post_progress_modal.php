@@ -329,7 +329,6 @@
                 '      </div>' +
                 '      <div class="modal-footer">' +
                 '        <button type="button" class="btn btn-default zoho-post-close" data-dismiss="modal" disabled>Close</button>' +
-                '        <button type="button" class="btn btn-success" id="zoho_btn_refresh" style="display:none;" onclick="window.location.reload();"><i class="fa fa-refresh"></i> Refresh Page</button>' +
                 '      </div>' +
                 '    </div>' +
                 '  </div>' +
@@ -353,7 +352,6 @@
             $('#zoho_steps_wrapper').html('');
             $('#zoho_log_console').html('');
             $('#zoho_final_alert').hide().removeClass('alert alert-success alert-danger alert-warning').html('');
-            $('#zoho_btn_refresh').hide();
             $('#zoho_post_progress_modal .zoho-post-close').prop('disabled', true);
             $('#zoho_post_progress_modal').modal('show');
         };
@@ -379,7 +377,6 @@
             $('#zoho_post_progress_modal .zoho-post-close').prop('disabled', false);
             if (isSuccess) {
                 $('#zoho_progress_bar').css('width', '100%');
-                $('#zoho_btn_refresh').show();
                 if (finalMessage) {
                     $('#zoho_final_alert').removeClass('alert-danger alert-warning').addClass('alert alert-success').html('<i class="fa fa-check-circle"></i> ' + finalMessage).slideDown(200);
                 }

@@ -830,10 +830,10 @@ function get_invoice_bank_details_html($invoice)
     $currency = $bank->currency_code !== '' ? $bank->currency_code : $bank->currency_name;
 
     $html = '<div class="invoice-bank-details">';
-    $html .= '<p class="bold">Bank Details:</p>';
+    $html .= '<p class="bold" style="font-weight: bold;"><b>Bank Details:</b></p>';
     $html .= '<table cellpadding="2" cellspacing="0" border="0">';
     $html .= '<tr><td width="90"><strong>Title:</strong></td><td>' . html_escape($bank->title) . '</td></tr>';
-    $html .= '<tr><td width="90"><strong>Bank Name:</strong></td><td>' . html_escape($bank_name) . '</td></tr>';
+    $html .= '<tr><td width="90"><strong>Bank:</strong></td><td>' . html_escape($bank_name) . '</td></tr>';
     $html .= '<tr><td width="90"><strong>Currency:</strong></td><td>' . html_escape($currency) . '</td></tr>';
     $html .= '<tr><td width="90"><strong>Swift:</strong></td><td>' . html_escape($bank->swift) . '</td></tr>';
     $html .= '<tr><td width="90"><strong>Acc #:</strong></td><td>' . html_escape($bank->iban) . '</td></tr>';
