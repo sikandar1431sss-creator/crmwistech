@@ -300,3 +300,81 @@ $(document).ready(function () {
 
 
 });
+
+function copy_to_clipboard(text, message) {
+    if (!text) {
+        return false;
+    }
+    var successMsg = message || 'Link copied to clipboard!';
+
+    function notifySuccess() {
+        if (typeof alert_float === 'function') {
+            alert_float('success', successMsg);
+        } else {
+            alert(successMsg);
+        }
+    }
+
+    function notifyError() {
+        if (typeof alert_float === 'function') {
+            alert_float('danger', 'Unable to copy link to clipboard');
+        }
+    }
+
+    if (navigator.clipboard && (window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        navigator.clipboard.writeText(text).then(function () {
+            notifySuccess();
+        }).catch(function (err) {
+            fallback_copy_to_clipboard_exec(text, successMsg, notifySuccess, notifyError);
+        });
+        return false;
+    }
+
+    fallback_copy_to_clipboard_exec(text, successMsg, notifySuccess, notifyError);
+    return false;
+}
+
+function fallback_copy_to_clipboard_exec(text, successMsg, notifySuccess, notifyError) {
+    var textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    textArea.style.opacity = '0.01';
+    textArea.style.zIndex = '-1';
+    document.body.appendChild(textArea);
+
+    textArea.focus();
+    textArea.select();
+    if (textArea.setSelectionRange) {
+        textArea.setSelectionRange(0, text.length);
+    }
+
+    var successful = false;
+    try {
+        successful = document.execCommand('copy');
+    } catch (err) {
+        successful = false;
+    }
+    document.body.removeChild(textArea);
+
+    if (successful) {
+        if (typeof notifySuccess === 'function') {
+            notifySuccess();
+        } else if (typeof alert_float === 'function') {
+            alert_float('success', successMsg || 'Link copied to clipboard!');
+        }
+    } else {
+        window.prompt("Copy link manually (Ctrl+C / Cmd+C):", text);
+    }
+}
+
+

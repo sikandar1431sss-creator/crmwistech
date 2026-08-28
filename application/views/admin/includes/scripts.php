@@ -36,7 +36,84 @@
 <script src="<?php echo base_url('assets/js/bootstrap.confirm.js'); ?>"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap3-dialog/1.35.4/js/bootstrap-dialog.js"></script>
 <?php echo app_script('assets/js','custom_main.js'); ?>
-<script src="<?php echo base_url('assets/js/custom.js'); ?>"></script>
+<script src="<?php echo base_url('assets/js/custom.js?v=' . (defined('ENVIRONMENT') && ENVIRONMENT == 'development' ? time() : get_app_version())); ?>"></script>
+<script type="text/javascript">
+function copy_to_clipboard(text, message) {
+    if (!text) {
+        return false;
+    }
+    var successMsg = message || 'Link copied to clipboard!';
+
+    function notifySuccess() {
+        if (typeof alert_float === 'function') {
+            alert_float('success', successMsg);
+        } else {
+            alert(successMsg);
+        }
+    }
+
+    function notifyError() {
+        if (typeof alert_float === 'function') {
+            alert_float('danger', 'Unable to copy link to clipboard');
+        }
+    }
+
+    if (navigator.clipboard && (window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        navigator.clipboard.writeText(text).then(function () {
+            notifySuccess();
+        }).catch(function (err) {
+            fallback_copy_to_clipboard_exec(text, successMsg, notifySuccess, notifyError);
+        });
+        return false;
+    }
+
+    fallback_copy_to_clipboard_exec(text, successMsg, notifySuccess, notifyError);
+    return false;
+}
+
+function fallback_copy_to_clipboard_exec(text, successMsg, notifySuccess, notifyError) {
+    var textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    textArea.style.opacity = '0.01';
+    textArea.style.zIndex = '-1';
+    document.body.appendChild(textArea);
+
+    textArea.focus();
+    textArea.select();
+    if (textArea.setSelectionRange) {
+        textArea.setSelectionRange(0, text.length);
+    }
+
+    var successful = false;
+    try {
+        successful = document.execCommand('copy');
+    } catch (err) {
+        successful = false;
+    }
+    document.body.removeChild(textArea);
+
+    if (successful) {
+        if (typeof notifySuccess === 'function') {
+            notifySuccess();
+        } else if (typeof alert_float === 'function') {
+            alert_float('success', successMsg || 'Link copied to clipboard!');
+        }
+    } else {
+        window.prompt("Copy link manually (Ctrl+C / Cmd+C):", text);
+    }
+}
+</script>
 <?php
 /**
  * Global function for custom field of type hyperlink

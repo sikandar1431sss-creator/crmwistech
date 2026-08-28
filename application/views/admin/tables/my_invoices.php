@@ -177,10 +177,15 @@
 
       $numberOutput .= '<div class="row-options">';
 
-      $numberOutput .= '<a href="' . admin_url('invoices/list_invoices/' . $aRow['id']) . '" target="_blank">' . _l('view') . '</a>';
+      if (is_numeric($clientid) || $project_id) {
+          $numberOutput .= '<a href="' . admin_url('invoices/list_invoices/' . $aRow['id']) . '" target="_blank">' . _l('view') . '</a>';
+      } else {
+          $numberOutput .= '<a href="' . admin_url('invoices/list_invoices/' . $aRow['id']) . '" onclick="init_invoice(' . $aRow['id'] . '); return false;">' . _l('view') . '</a>';
+      }
       if (has_permission('invoices', '', 'edit')) {
           $numberOutput .= ' | <a href="' . admin_url('invoices/invoice/' . $aRow['id']) . '">' . _l('edit') . '</a>';
       }
+      $numberOutput .= ' | <a href="#" onclick="copy_to_clipboard(\'' . site_url('invoice/' . $aRow['id'] . '/' . $aRow['hash']) . '\'); return false;">' . 'Copy Link' . '</a>';
       $numberOutput .= '</div>';
 
 

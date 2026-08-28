@@ -214,7 +214,7 @@
                             <ul class="dropdown-menu dropdown-menu-right">
                                 <li><a href="<?php echo site_url('invoice/' . $invoice->id . '/' . $invoice->hash) ?>"
                                        target="_blank"><?php echo _l('view_invoice_as_customer_tooltip'); ?></a></li>
-                                <li>
+                                    <li>
                                     <?php if ($invoice->status == 4 || ($invoice->status == 3 && !empty($invoice->duedate) && $invoice->duedate && date('Y-m-d') > date('Y-m-d', strtotime(to_sql_date($invoice->duedate)))) && is_invoices_overdue_reminders_enabled()) { ?>
                                         <a href="<?php echo admin_url('invoices/send_overdue_notice/' . $invoice->id); ?>"><?php echo _l('send_overdue_notice_tooltip'); ?></a>
                                     <?php } ?>

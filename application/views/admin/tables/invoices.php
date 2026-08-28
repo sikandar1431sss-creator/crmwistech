@@ -145,7 +145,11 @@ foreach ($rResult as $aRow) {
 
     $numberOutput .= '<div class="row-options">';
 
-    $numberOutput .= '<a href="' . admin_url('invoices/list_invoices/' . $aRow['id']) . '" target="_blank">' . _l('view') . '</a>';
+    if (is_numeric($clientid) || $project_id) {
+        $numberOutput .= '<a href="' . admin_url('invoices/list_invoices/' . $aRow['id']) . '" target="_blank">' . _l('view') . '</a>';
+    } else {
+        $numberOutput .= '<a href="' . admin_url('invoices/list_invoices/' . $aRow['id']) . '" onclick="init_invoice(' . $aRow['id'] . '); return false;">' . _l('view') . '</a>';
+    }
     if (has_permission('invoices', '', 'edit')) {
         $numberOutput .= ' | <a href="' . admin_url('invoices/invoice/' . $aRow['id']) . '">' . _l('edit') . '</a>';
     }
@@ -177,6 +181,28 @@ foreach ($rResult as $aRow) {
     $row[] = render_tags($aRow['tags']);
 
     $row[] = _d($aRow['duedate']);
+
+    $zoho_status = '';
+    $CI = & get_instance();
+    $zoho_data = $CI->db->query('SELECT `zoho_id`,`type` FROM tblinvoices WHERE id='.$aRow['id']);
+    $zoho_data_result = $zoho_data ? $zoho_data->result_array() : [];
+    if (isset($zoho_data_result[0]) && $zoho_data_result[0]['type'] == "invoice" && $aRow['tblinvoices.status'] != 5) {
+        $invoice_zoho_id = trim((string)$zoho_data_result[0]['zoho_id']);
+        if ($invoice_zoho_id !== '' && strtoupper($invoice_zoho_id) !== 'NULL') {
+            $zoho_status = '<a id="zoho_disabled" class=" btn btn-default btn-with-tooltip" data-toggle="tooltip"
+                                   title="Posted to Zoho" data-placement="bottom"
+                                   style="margin-right: 5px;"><i class="fa fa-clipboard"> Posted</i>
+                                </a>';
+        } else {
+            $zoho_status =
+                '<a id="post_to_zoho_invoice" class=" btn btn-success post_to_zoho_invoice btn-with-tooltip"
+                                   data_id="' . $aRow['id'] . '" data-toggle="tooltip"
+                                   title="Post To Zoho" data-placement="bottom"
+                                   style="margin-right: 5px;"><i class="fa fa-clipboard"> Post</i>
+                                </a>';
+        }
+    }
+    $row[] = $zoho_status;
 
     $row[] = format_invoice_status($aRow['tblinvoices.status']);
 
