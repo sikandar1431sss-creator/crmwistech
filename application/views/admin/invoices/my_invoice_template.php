@@ -1208,22 +1208,22 @@ if ((isset($invoice))) {
 		                }
 		            });
 
-		            $bank.empty().append($('<option value="">Select bank account</option>'));
+		            $bank.empty();
 
 		            if (matches.length) {
 		                $.each(matches, function (_, $option) {
 		                    $bank.append($option);
 		                });
 		                $error.hide().text('');
+		                if (selectedBank && $bank.find('option[value="' + selectedBank + '"]').length) {
+		                    $bank.val(selectedBank);
+		                } else {
+		                    $bank.val(matches[0].attr('value'));
+		                }
 		            } else {
 		                $bank.append($('<option value=""></option>').text('No bank account added for ' + (selectedCurrencyCode || 'selected') + ' currency'));
-		                $error.text('No bank account added for ' + (selectedCurrencyCode || 'selected') + ' currency.').show();
-		            }
-
-		            if (selectedBank && $bank.find('option[value="' + selectedBank + '"]').length) {
-		                $bank.val(selectedBank);
-		            } else {
 		                $bank.val('');
+		                $error.text('No bank account added for ' + (selectedCurrencyCode || 'selected') + ' currency.').show();
 		            }
 
 		            if ($bank.data('selectpicker')) {

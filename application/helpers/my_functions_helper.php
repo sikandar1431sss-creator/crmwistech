@@ -808,33 +808,29 @@ function get_receipt_deposit_bank_options($selected = '', $currency = '')
 {
     $options = '';
     $banks = get_receipt_deposit_banks(false, $currency);
-    $selected_found = false;
     $currency_code = get_receipt_currency_code($currency);
 
-    foreach ($banks as $bank) {
-        $is_selected = ($selected === $bank['code']) ? ' selected' : '';
-        if ($is_selected !== '') {
-            $selected_found = true;
-        }
-        $options .= '<option value="' . html_escape($bank['code']) . '"' . $is_selected . '>' . html_escape(get_receipt_deposit_bank_label($bank)) . '</option>';
+    if (empty($banks)) {
+        return '<option value="">No bank account added for ' . html_escape($currency_code ?: 'selected') . ' currency</option>';
     }
 
-    if ($selected !== '' && !$selected_found) {
-        foreach (get_receipt_deposit_banks(true) as $bank) {
-            $bank_currency_code = !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '';
-            if ($selected === $bank['code'] && ($currency_code === '' || $bank_currency_code === '' || $bank_currency_code === $currency_code)) {
-                $options .= '<option value="' . html_escape($bank['code']) . '" selected>' . html_escape(get_receipt_deposit_bank_label($bank)) . '</option>';
+    $selected_bank_code = '';
+    if ($selected !== '') {
+        foreach ($banks as $bank) {
+            if ($selected === $bank['code']) {
+                $selected_bank_code = $bank['code'];
                 break;
             }
         }
+    }
 
-        foreach (get_receipt_legacy_deposit_banks(true) as $bank) {
-            $bank_currency_code = !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '';
-            if ($selected === $bank['code'] && ($currency_code === '' || $bank_currency_code === '' || $bank_currency_code === $currency_code)) {
-                $options .= '<option value="' . html_escape($bank['code']) . '" selected>' . html_escape(get_receipt_deposit_bank_label($bank)) . '</option>';
-                break;
-            }
-        }
+    if ($selected_bank_code === '' && !empty($banks)) {
+        $selected_bank_code = $banks[0]['code'];
+    }
+
+    foreach ($banks as $bank) {
+        $is_selected = ($selected_bank_code === $bank['code']) ? ' selected' : '';
+        $options .= '<option value="' . html_escape($bank['code']) . '"' . $is_selected . '>' . html_escape(get_receipt_deposit_bank_label($bank)) . '</option>';
     }
 
     return $options;

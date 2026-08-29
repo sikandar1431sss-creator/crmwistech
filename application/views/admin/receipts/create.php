@@ -285,31 +285,34 @@ $csrf = array(
 
 	        function getReceiptDepositBankOptions(selected) {
 	            var bankOptions = '';
-	            var found = false;
-		            var banks = getReceiptDepositBanksForCurrency();
-		            var receiptCurrencyCode = getReceiptCurrencyCode();
+	            var banks = getReceiptDepositBanksForCurrency();
+	            var receiptCurrencyCode = getReceiptCurrencyCode();
 
-		            $.each(banks, function (_, bank) {
-	                var selectedAttr = selected && selected === bank.code ? ' selected' : '';
-	                if (selectedAttr) {
-	                    found = true;
-	                }
+	            if (!banks || banks.length === 0) {
+	                return '<option value="">No bank account added for ' + $('<div>').text(receiptCurrencyCode || 'selected').html() + ' currency</option>';
+	            }
+
+	            var selectedBankCode = '';
+	            if (selected) {
+	                $.each(banks, function (_, bank) {
+	                    if (bank.code === selected) {
+	                        selectedBankCode = bank.code;
+	                        return false;
+	                    }
+	                });
+	            }
+
+	            if (!selectedBankCode && banks.length > 0) {
+	                selectedBankCode = banks[0].code;
+	            }
+
+	            $.each(banks, function (_, bank) {
+	                var selectedAttr = (selectedBankCode === bank.code) ? ' selected' : '';
 	                bankOptions += '<option value="' + $('<div>').text(bank.code).html() + '"' + selectedAttr + '>' + $('<div>').text(receiptDepositBankLabel(bank)).html() + '</option>';
 	            });
 
-	            if (!bankOptions) {
-		                return '<option value="">No bank account added for ' + $('<div>').text(receiptCurrencyCode || 'selected').html() + ' currency</option>';
-	            } else if (selected && !found) {
-		                $.each(banks, function (_, bank) {
-	                    if (bank.code === selected) {
-	                        bankOptions += '<option value="' + $('<div>').text(bank.code).html() + '" selected>' + $('<div>').text(receiptDepositBankLabel(bank)).html() + '</option>';
-	                        return false;
-                    }
-                });
-            }
-
-            return '<option value="">Select Bank</option>' + bankOptions;
-        }
+	            return bankOptions;
+	        }
 
         function buildDepositBankHtml(selected) {
             var bankHtml = '';
