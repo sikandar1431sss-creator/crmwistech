@@ -2184,7 +2184,8 @@ protected function receiptJson($receipt_data)
     /*
      * Default account.
      */
-    $account_id = '1312911000000073107';
+    $default_zoho_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, isset($receipt_data['receipt_type']) ? $receipt_data['receipt_type'] : 'Cash');
+    $account_id = $default_zoho_account['account_id'];
 
     $payment_mode = 'others';
     $description = '';
@@ -2203,21 +2204,17 @@ protected function receiptJson($receipt_data)
             $base_currency_code
         );
 
-    } elseif (
-        $receipt_data['receipt_type'] === 'Cash'
-    ) {
+    } elseif ($receipt_data['receipt_type'] === 'Cash') {
 
         $payment_mode = 'cash';
+        $bank_code = isset($receipt_data['deposit_bank']) ? trim((string)$receipt_data['deposit_bank']) : '';
+        $bank = get_receipt_deposit_bank($bank_code, true);
 
-        if (
-            isset($receipt_data['reciept_owner'])
-            && (int)$receipt_data['reciept_owner'] === 21
-        ) {
-            // Dalbir
-            $account_id = '1312911000000086053';
+        if ($bank && !empty($bank['account_id'])) {
+            $account_id = $bank['account_id'];
         } else {
-            // Khuram Iqbal
-            $account_id = '1312911000000073107';
+            $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Cash');
+            $account_id = $default_account['account_id'];
         }
 
     } elseif (
@@ -2238,9 +2235,15 @@ protected function receiptJson($receipt_data)
 
         $payment_mode = 'creditcard';
         $description = 'Stripe payment';
+        $bank_code = isset($receipt_data['deposit_bank']) ? trim((string)$receipt_data['deposit_bank']) : '';
+        $bank = get_receipt_deposit_bank($bank_code, true);
 
-        // Stripe clearing account
-        $account_id = '1312911000004871001';
+        if ($bank && !empty($bank['account_id'])) {
+            $account_id = $bank['account_id'];
+        } else {
+            $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Stripe');
+            $account_id = $default_account['account_id'];
+        }
     }
 
     /*
@@ -2754,12 +2757,14 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
     protected function receiptJson_27_jul($receipt_data)
     {
         $invoices = $this->receipts_model->get_zoho_recipt_invoices($receipt_data['receipt_id']);
-        //khuram iqbal
-        $account_id = '1312911000000073107';
+        $transaction_currency_code = !empty($receipt_data['receipt_currency']) ? get_receipt_currency_code($receipt_data['receipt_currency']) : '';
+        $default_zoho_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, isset($receipt_data['receipt_type']) ? $receipt_data['receipt_type'] : 'Cash');
+        $account_id = $default_zoho_account['account_id'];
 
         $invoices_array = array();
         $refund = 0;
         $payment_mode = 'others';
+        $description = '';
         if ($receipt_data['receipt_type'] == 'Cheque') {
             $payment_mode = 'check';
             $account_id = get_receipt_deposit_bank_account_id(
@@ -2768,12 +2773,13 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
             );
         } else if ($receipt_data['receipt_type'] == 'Cash') {
             $payment_mode = 'cash';
-            if ($receipt_data['reciept_owner'] == 21) {
-                //dalbir
-                $account_id = '1312911000000086053';
+            $bank_code = isset($receipt_data['deposit_bank']) ? trim((string)$receipt_data['deposit_bank']) : '';
+            $bank = get_receipt_deposit_bank($bank_code, true);
+            if ($bank && !empty($bank['account_id'])) {
+                $account_id = $bank['account_id'];
             } else {
-                //khuram iqbal
-                $account_id = '1312911000000073107';
+                $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Cash');
+                $account_id = $default_account['account_id'];
             }
         } else if ($receipt_data['receipt_type'] == 'Bank Transfer') {
             $payment_mode = 'banktransfer';
@@ -2781,12 +2787,18 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
                 isset($receipt_data['deposit_bank']) ? $receipt_data['deposit_bank'] : '',
                 $account_id
             );
-        }else if ($receipt_data['receipt_type'] == 'Stripe') {
-        // Stripe: Zoho does not support "stripe" in payment_mode
-        // Use creditcard and DO NOT send account_id (Zoho auto maps to Stripe Clearing)
-        $payment_mode = 'creditcard';
-        $description  = 'Stripe payment';
-      }
+        } else if ($receipt_data['receipt_type'] == 'Stripe') {
+            $payment_mode = 'creditcard';
+            $description  = 'Stripe payment';
+            $bank_code = isset($receipt_data['deposit_bank']) ? trim((string)$receipt_data['deposit_bank']) : '';
+            $bank = get_receipt_deposit_bank($bank_code, true);
+            if ($bank && !empty($bank['account_id'])) {
+                $account_id = $bank['account_id'];
+            } else {
+                $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Stripe');
+                $account_id = $default_account['account_id'];
+            }
+        }
 
         foreach ($invoices as $key => $invoice) {
             $payment_old = $this->receipts_model->get_invoice_previous_payment($invoice['invoiceid'], $receipt_data['receipt_id']);
@@ -3109,17 +3121,68 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
         $transaction_currency_code = $this->getReceiptTransactionCurrencyCode($receipt, $receiptInvoices);
         $base_currency_code = $this->getBaseCurrencyCode();
 
-        // Check bank deposit mapping
+        // Check deposit account & payment mode mapping
+        $receipt_type = isset($receipt['receipt_type']) ? trim($receipt['receipt_type']) : 'Bank Transfer';
         $bank_code = isset($receipt['deposit_bank']) ? trim((string)$receipt['deposit_bank']) : '';
         $bank = get_receipt_deposit_bank($bank_code, true);
-        if (!$bank) {
-            $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: please select a deposit bank account for this receipt.']);
-            exit;
-        }
-        $bank_label = get_receipt_deposit_bank_label($bank);
-        if (empty($bank['account_id'])) {
-            $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: selected bank "' . $bank_label . '" is not linked with a Zoho account.']);
-            exit;
+
+        $account_id = '';
+        $bank_label = '';
+        $payment_mode = 'others';
+        $description = '';
+
+        if ($receipt_type === 'Cash' || strcasecmp($receipt_type, 'cash') === 0) {
+            $payment_mode = 'cash';
+            if ($bank && !empty($bank['account_id'])) {
+                $account_id = $bank['account_id'];
+                $bank_label = get_receipt_deposit_bank_label($bank);
+            } else {
+                $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Cash');
+                $account_id = $default_account['account_id'];
+                $bank_label = $default_account['name'];
+            }
+        } elseif ($receipt_type === 'Stripe' || strcasecmp($receipt_type, 'stripe') === 0) {
+            $payment_mode = 'creditcard';
+            $description = 'Stripe payment';
+            if ($bank && !empty($bank['account_id'])) {
+                $account_id = $bank['account_id'];
+                $bank_label = get_receipt_deposit_bank_label($bank);
+            } else {
+                $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Stripe');
+                $account_id = $default_account['account_id'];
+                $bank_label = 'Stripe';
+            }
+        } else {
+            // Cheque or Bank Transfer
+            $payment_mode = ($receipt_type === 'Cheque' || strcasecmp($receipt_type, 'cheque') === 0) ? 'check' : 'banktransfer';
+            if (!$bank) {
+                $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: please select a deposit bank account for this receipt.']);
+                exit;
+            }
+            $bank_label = get_receipt_deposit_bank_label($bank);
+            if (empty($bank['account_id'])) {
+                $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: selected bank "' . $bank_label . '" is not linked with a Zoho account.']);
+                exit;
+            }
+
+            $bank_currency_code = !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '';
+            if (
+                $transaction_currency_code !== ''
+                && $bank_currency_code !== ''
+                && $transaction_currency_code !== $base_currency_code
+                && $transaction_currency_code !== $bank_currency_code
+            ) {
+                $emit([
+                    'type' => 'error',
+                    'step' => 'receipt',
+                    'message' => 'Unable to post to Zoho: selected bank "' . $bank_label . '" is ' . $bank_currency_code
+                        . ', but this receipt/invoice is ' . $transaction_currency_code
+                        . '. Please select a ' . $transaction_currency_code . ' bank account or change the receipt currency.'
+                ]);
+                exit;
+            }
+
+            $account_id = $bank['account_id'];
         }
 
         $emit([
@@ -3344,30 +3407,6 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
         if (empty($invoices_payload)) {
             $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to prepare payment data: no positive invoice amount available to apply.']);
             exit;
-        }
-
-        // Determine payment mode & deposit account
-        $payment_mode = 'others';
-        $description = '';
-        $account_id = '1312911000000073107';
-
-        if ($receipt['receipt_type'] === 'Cheque') {
-            $payment_mode = 'check';
-            $account_id = $bank['account_id'];
-        } elseif ($receipt['receipt_type'] === 'Cash') {
-            $payment_mode = 'cash';
-            if (isset($receipt['reciept_owner']) && (int)$receipt['reciept_owner'] === 21) {
-                $account_id = '1312911000000086053';
-            } else {
-                $account_id = '1312911000000073107';
-            }
-        } elseif ($receipt['receipt_type'] === 'Bank Transfer') {
-            $payment_mode = 'banktransfer';
-            $account_id = $bank['account_id'];
-        } elseif ($receipt['receipt_type'] === 'Stripe') {
-            $payment_mode = 'creditcard';
-            $description = 'Stripe payment';
-            $account_id = '1312911000004871001';
         }
 
         $zoho_currency = $this->getZohoCurrencyByCode($transaction_currency_code);

@@ -437,25 +437,36 @@ function get_default_receipt_deposit_banks()
 {
     return [
         [
-            'code' => 'mqe',
-            'name' => 'Mashreq AED',
-            'account_id' => '1312911000012488002',
+            'code' => 'derhim',
+            'name' => 'Derhim',
+            'zoho_name' => 'Derhim',
+            'account_id' => '1256346000000095140',
             'active' => 1,
             'currency_code' => 'AED',
         ],
         [
-            'code' => 'rak',
-            'name' => 'RAK',
-            'account_id' => '1312911000000081257',
+            'code' => 'usd',
+            'name' => 'usd',
+            'zoho_name' => 'usd',
+            'account_id' => '1256346000000095146',
             'active' => 1,
-            'currency_code' => 'AED',
+            'currency_code' => 'USD',
         ],
         [
-            'code' => 'enbd',
-            'name' => 'ENBD',
-            'account_id' => '1312911000000077839',
+            'code' => 'gbp',
+            'name' => 'GBP',
+            'zoho_name' => 'GBP',
+            'account_id' => '1256346000000095154',
             'active' => 1,
-            'currency_code' => 'AED',
+            'currency_code' => 'GBP',
+        ],
+        [
+            'code' => 'euro',
+            'name' => 'Euro',
+            'zoho_name' => 'Euro',
+            'account_id' => '1256346000000095150',
+            'active' => 1,
+            'currency_code' => 'EUR',
         ],
     ];
 }
@@ -712,6 +723,58 @@ function get_receipt_deposit_bank_account_id($code, $fallback = '')
     }
 
     return $fallback;
+}
+
+function get_receipt_default_zoho_deposit_account($currency_code = '', $receipt_type = 'Cash')
+{
+    $currency_code = normalize_receipt_currency_code($currency_code);
+    $receipt_type = strtolower(trim((string)$receipt_type));
+
+    // For Cash in AED (base currency), default to Zoho Petty Cash account
+    if ($receipt_type === 'cash' && ($currency_code === '' || $currency_code === 'AED')) {
+        return [
+            'account_id' => '1256346000000000361',
+            'name' => 'Petty Cash',
+            'currency_code' => 'AED',
+        ];
+    }
+
+    // Look for matching bank/cash account in active CRM deposit banks for this currency
+    if ($currency_code !== '') {
+        $matching_banks = get_receipt_deposit_banks(false, $currency_code);
+        if (!empty($matching_banks)) {
+            foreach ($matching_banks as $bank) {
+                if (!empty($bank['account_id'])) {
+                    return [
+                        'account_id' => $bank['account_id'],
+                        'name' => get_receipt_deposit_bank_label($bank),
+                        'currency_code' => !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : $currency_code,
+                    ];
+                }
+            }
+        }
+    }
+
+    // Fallback to active banks in database
+    $all_banks = get_receipt_deposit_banks(false);
+    if (!empty($all_banks)) {
+        foreach ($all_banks as $bank) {
+            if (!empty($bank['account_id'])) {
+                return [
+                    'account_id' => $bank['account_id'],
+                    'name' => get_receipt_deposit_bank_label($bank),
+                    'currency_code' => !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '',
+                ];
+            }
+        }
+    }
+
+    // Ultimate fallback to Petty Cash
+    return [
+        'account_id' => '1256346000000000361',
+        'name' => 'Petty Cash',
+        'currency_code' => 'AED',
+    ];
 }
 
 function get_receipt_deposit_bank($code, $include_inactive = true)

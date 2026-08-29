@@ -771,33 +771,47 @@ class Sync_invoices extends Admin_controller
     protected function receiptJson($receipt_data)
     {
         $invoices = $this->receipts_model->get_zoho_recipt_invoices($receipt_data['receipt_id']);
-        //khuram iqbal
-        $account_id= '1312911000000073107';
+        $transaction_currency_code = !empty($receipt_data['receipt_currency']) ? get_receipt_currency_code($receipt_data['receipt_currency']) : '';
+        $default_zoho_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, isset($receipt_data['receipt_type']) ? $receipt_data['receipt_type'] : 'Cash');
+        $account_id = $default_zoho_account['account_id'];
 
         $invoices_array = array();
         $refund = 0;
         $payment_mode = 'others';
-        if($receipt_data['receipt_type'] == 'Cheque'){
+        $description = '';
+        if ($receipt_data['receipt_type'] == 'Cheque') {
             $payment_mode = 'check';
             $account_id = get_receipt_deposit_bank_account_id(
                 isset($receipt_data['deposit_bank']) ? $receipt_data['deposit_bank'] : '',
                 $account_id
             );
-        }else if($receipt_data['receipt_type'] == 'Cash'){
+        } else if ($receipt_data['receipt_type'] == 'Cash') {
             $payment_mode = 'cash';
-            if($receipt_data['reciept_owner'] == 21){
-                //dalbir
-                $account_id= '1312911000000086053';
-            }else{
-                //khuram iqbal
-                $account_id= '1312911000000073107';
+            $bank_code = isset($receipt_data['deposit_bank']) ? trim((string)$receipt_data['deposit_bank']) : '';
+            $bank = get_receipt_deposit_bank($bank_code, true);
+            if ($bank && !empty($bank['account_id'])) {
+                $account_id = $bank['account_id'];
+            } else {
+                $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Cash');
+                $account_id = $default_account['account_id'];
             }
-        }else if($receipt_data['receipt_type'] == 'Bank Transfer'){
+        } else if ($receipt_data['receipt_type'] == 'Bank Transfer') {
             $payment_mode = 'banktransfer';
             $account_id = get_receipt_deposit_bank_account_id(
                 isset($receipt_data['deposit_bank']) ? $receipt_data['deposit_bank'] : '',
                 $account_id
             );
+        } else if ($receipt_data['receipt_type'] == 'Stripe') {
+            $payment_mode = 'creditcard';
+            $description  = 'Stripe payment';
+            $bank_code = isset($receipt_data['deposit_bank']) ? trim((string)$receipt_data['deposit_bank']) : '';
+            $bank = get_receipt_deposit_bank($bank_code, true);
+            if ($bank && !empty($bank['account_id'])) {
+                $account_id = $bank['account_id'];
+            } else {
+                $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Stripe');
+                $account_id = $default_account['account_id'];
+            }
         }
 
         foreach ($invoices as $key => $invoice){
