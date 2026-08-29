@@ -337,7 +337,59 @@ class ZohoBooks
 
         $this->checkApiRequestsLimit();
         return $items;
-        return $this->httpCode == 201 ? $contact : false;
+    }
+
+    public function getItems($params = [])
+    {
+        $queryString = '';
+        if (!empty($params) && is_array($params)) {
+            $queryString = '&' . http_build_query($params);
+        }
+        $url = $this->apiUrl . $this->ItemsUrl . '?organization_id=' . $this->organizationId . $queryString;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $this->timeout,
+            CURLOPT_HTTPHEADER => ["authorization: Zoho-oauthtoken " . $this->accessToken, "Content-Type: application/json"]
+        ]);
+        $response = curl_exec($ch);
+        $this->httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $this->checkApiRequestsLimit();
+        return $response;
+    }
+
+    public function getItem($item_id)
+    {
+        $url = $this->apiUrl . $this->ItemsUrl . trim($item_id) . '?organization_id=' . $this->organizationId;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $this->timeout,
+            CURLOPT_HTTPHEADER => ["authorization: Zoho-oauthtoken " . $this->accessToken, "Content-Type: application/json"]
+        ]);
+        $response = curl_exec($ch);
+        $this->httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $this->checkApiRequestsLimit();
+        return $response;
+    }
+
+    public function markItemActive($item_id)
+    {
+        $url = $this->apiUrl . $this->ItemsUrl . trim($item_id) . '/active?organization_id=' . $this->organizationId;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => 1,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $this->timeout,
+            CURLOPT_HTTPHEADER => ["authorization: Zoho-oauthtoken " . $this->accessToken, "Content-Type: application/json"]
+        ]);
+        $response = curl_exec($ch);
+        $this->httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $this->checkApiRequestsLimit();
+        return $response;
     }
 
     /**

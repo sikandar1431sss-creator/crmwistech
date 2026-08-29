@@ -1257,14 +1257,14 @@ class Receipts extends Admin_controller
 
             foreach ($items as $item) {
 
-                if ($item['zoho_id'] == "") {
-                    $item_id_zoho = $this->getZohoItemId($item);
-                } else {
+                $item_id_zoho = "";
+                if (!empty($item['zoho_id'])) {
                     $item_id_zoho = $item['zoho_id'];
+                } else {
+                    $item_id_zoho = $this->getZohoItemId($item);
                 }
 
-                $line_items[$i] = [
-                    "item_id" => $item_id_zoho,
+                $line_item = [
                     "project_id" => "",
                     "name" => strip_tags($item['description']),
                     "description" => strip_tags($item['long_description']),
@@ -1275,9 +1275,13 @@ class Receipts extends Admin_controller
                     "unit" => strip_tags($item['unit']),
                     "discount_amount" => $per_item_discount,
                     "discount" => $per_item_discount,
-                /*"discount_amount" => strip_tags($item['discount']),
-                    "discount" => strip_tags($item['discount'])*/
                 ];
+
+                if (!empty($item_id_zoho)) {
+                    $line_item["item_id"] = $item_id_zoho;
+                }
+
+                $line_items[$i] = $line_item;
 
                 // get Item Tax
                 $item_taxes = get_invoice_item_taxes($item['id']);
@@ -1524,44 +1528,73 @@ class Receipts extends Admin_controller
      * @param $item
      * @return mixed
      */
-    public function getZohoItemId($item)
+    public function getZohoItemId($item, ZohoBooks $zb = null)
     {
-        if (is_array($item) && count($item) > 0) {
-
-            $data = [
-                "name" => strip_tags($item['id']) . "-" . $item['description'],
-                "rate" => $item['rate'],
-                "description" => strip_tags($item['long_description']),
-                "sku" => strip_tags($item['id']),
-            ];
-
-            $zb = new ZohoBooks();
-            $response = $zb->postItems(json_encode($data));
-            $do_item = json_decode($response);
-
-            if ($do_item !== null && isset($do_item->code)) {
-                if ((int)$do_item->code === 0 && isset($do_item->item->item_id)) {
-
-                    $item_id = $do_item->item->item_id;
-                    //### update zoho Id
-                    $this->db->where('id', $item['id']);
-                    $this->db->update('tblitems_in', array('zoho_id' => $item_id));
-
-                    return $item_id;
-                }
-
-                echo isset($do_item->message)
-                    ? 'Unable to create Zoho item: ' . $do_item->message
-                    : 'Unable to create Zoho item.';
-                exit;
-            }
-
-            echo 'Invalid response received while creating Zoho item: ' . $response;
-            exit;
+        if (!is_array($item) || empty($item)) {
+            return '';
         }
 
-        echo 'Unable to prepare Zoho item data.';
-        exit;
+        if ($zb === null) {
+            $zb = new ZohoBooks();
+        }
+
+        $item_sku = trim(strip_tags((string)$item['id']));
+        $item_name = $item_sku . '-' . trim(strip_tags((string)$item['description']));
+
+        // 1. Search if item already exists in Zoho Books
+        $searchResponse = $zb->getItems(['search_text' => $item_sku]);
+        $searchData = $searchResponse ? json_decode($searchResponse) : null;
+        if (!empty($searchData) && isset($searchData->code) && (int)$searchData->code === 0 && !empty($searchData->items)) {
+            foreach ($searchData->items as $zoho_item) {
+                if ((isset($zoho_item->sku) && trim((string)$zoho_item->sku) === $item_sku) || (isset($zoho_item->name) && trim((string)$zoho_item->name) === $item_name)) {
+                    $item_id = $zoho_item->item_id;
+                    if (isset($zoho_item->status) && $zoho_item->status === 'inactive') {
+                        @$zb->markItemActive($item_id);
+                    }
+                    $this->db->where('id', $item['id']);
+                    $this->db->update('tblitems_in', ['zoho_id' => $item_id]);
+                    return $item_id;
+                }
+            }
+        }
+
+        // 2. Try creating the item in Zoho Books
+        $data = [
+            "name" => $item_name,
+            "rate" => $item['rate'],
+            "description" => strip_tags($item['long_description']),
+            "sku" => $item_sku,
+        ];
+
+        $response = $zb->postItems(json_encode($data));
+        $do_item = json_decode($response);
+
+        if ($do_item !== null && isset($do_item->code)) {
+            if ((int)$do_item->code === 0 && isset($do_item->item->item_id)) {
+                $item_id = $do_item->item->item_id;
+                $this->db->where('id', $item['id']);
+                $this->db->update('tblitems_in', ['zoho_id' => $item_id]);
+                return $item_id;
+            }
+
+            // If item already exists in Zoho
+            if ((int)$do_item->code === 1001 || (isset($do_item->message) && strpos(strtolower($do_item->message), 'already exists') !== false)) {
+                $searchResponse2 = $zb->getItems(['search_text' => $item_sku]);
+                $searchData2 = $searchResponse2 ? json_decode($searchResponse2) : null;
+                if (!empty($searchData2) && !empty($searchData2->items)) {
+                    $found_item = $searchData2->items[0];
+                    $item_id = $found_item->item_id;
+                    if (isset($found_item->status) && $found_item->status === 'inactive') {
+                        @$zb->markItemActive($item_id);
+                    }
+                    $this->db->where('id', $item['id']);
+                    $this->db->update('tblitems_in', ['zoho_id' => $item_id]);
+                    return $item_id;
+                }
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -1649,10 +1682,6 @@ class Receipts extends Admin_controller
                 ],
                 "contact_persons" => $contacts
             ];
-
-            if ($place_of_contact !== '') {
-                $contact['place_of_contact'] = $place_of_contact;
-            }
 
             if (!empty($client->vat)) {
                 $contact['tax_reg_no'] = $client->vat;
@@ -3162,8 +3191,7 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
                 exit;
             }
 
-            $contact_response = $zb->postContact(json_encode($contact_data_arr));
-            $contact_result = $contact_response ? json_decode($contact_response) : null;
+            $contact_result = $this->postZohoContact($zb, $contact_data_arr);
 
             if (empty($contact_result) || !isset($contact_result->code) || (int)$contact_result->code !== 0 || !isset($contact_result->contact->contact_id)) {
                 $err_msg = isset($contact_result->message) ? $contact_result->message : 'Unable to create customer in Zoho Books.';
@@ -3455,10 +3483,6 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
             $zoho_inv_id = $invoice_data->invoice->invoice_id;
             $this->assertZohoInvoiceCurrencyMatches($invoice, $invoice_data);
 
-            // Update items table
-            $this->db->where('rel_id', $invoice['id']);
-            $this->db->update('tblitems_in', ['zoho_id' => $zoho_inv_id]);
-
             // Update invoice table
             $this->db->where('id', $invoice['id']);
             $this->db->update('tblinvoices', ['zoho_id' => $zoho_inv_id]);
@@ -3649,10 +3673,6 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
         if ((int)$invoice_data->code === 0 && isset($invoice_data->invoice->invoice_id)) {
             $zoho_inv_id = $invoice_data->invoice->invoice_id;
             $this->assertZohoInvoiceCurrencyMatches($invoice, $invoice_data);
-
-            // Update items table
-            $this->db->where('rel_id', $invoice['id']);
-            $this->db->update('tblitems_in', ['zoho_id' => $zoho_inv_id]);
 
             // Update invoice table
             $this->db->where('id', $invoice['id']);
