@@ -1229,24 +1229,15 @@ class Receipts extends Admin_controller
      * @param $invoice_data
      * @return array
      */
-    protected function invoiceJson($invoice_data)
+    protected function invoiceJson($invoice_data, $zb = null)
     {
 
         $items = $this->invoices_model->get_invoice_items($invoice_data['id']);
-
-
 
         $line_items = [];
         $i = 0;
         $per_item_discount =0;
         if ($items <> null && count($items) > 0) {
-            /*if($invoice_data['vat_treatment'] != 'vat_registered') {
-                $total_items = count($items);
-                if ($invoice_data['discount_total'] > 0) {
-                    $per_item_discount = $invoice_data['discount_total'] / $total_items;
-                    $per_item_discount = number_format((float)$per_item_discount, 2, '.', '');
-                }
-            }*/
             $total_items = count($items);
             $discount_type_flag = 0;
             if ($invoice_data['discount_total'] > 0) {
@@ -1261,7 +1252,7 @@ class Receipts extends Admin_controller
                 if (!empty($item['zoho_id'])) {
                     $item_id_zoho = $item['zoho_id'];
                 } else {
-                    $item_id_zoho = $this->getZohoItemId($item);
+                    $item_id_zoho = $this->getZohoItemId($item, $zb);
                 }
 
                 $line_item = [
@@ -1285,18 +1276,44 @@ class Receipts extends Admin_controller
 
                 // get Item Tax
                 $item_taxes = get_invoice_item_taxes($item['id']);
+                $item_tax_applied = false;
 
                 if (count($item_taxes) > 0) {
                     foreach ($item_taxes as $taxes) {
+                        $tax_rate = isset($taxes['taxrate']) ? (float)$taxes['taxrate'] : 0.0;
+                        $tax_name = isset($taxes['taxname']) ? $taxes['taxname'] : '';
 
-                        if (strpos($taxes['taxname'], 'VAT|5.00') !== false) {
-                            $line_items[$i]['tax_id'] = get_option('zoho_vat_id');
-                            $line_items[$i]['tax_name'] = "VAT";
+                        if ($tax_rate > 0 || stripos($tax_name, '5.00') !== false || (stripos($tax_name, 'vat') !== false && stripos($tax_name, 'zero') === false)) {
+                            $line_tax = $this->getZohoTaxForRate($tax_rate > 0 ? $tax_rate : 5, 'Standard', $zb);
+                            if (!empty($line_tax['tax_id'])) {
+                                $line_items[$i]['tax_id'] = $line_tax['tax_id'];
+                            }
+                            $line_items[$i]['tax_name'] = !empty($line_tax['tax_name']) ? $line_tax['tax_name'] : "VAT";
                             $line_items[$i]['tax_type'] = "tax";
-                            $line_items[$i]['tax_percentage'] = $taxes['taxrate'];
-
+                            $line_items[$i]['tax_percentage'] = $tax_rate > 0 ? $tax_rate : 5;
+                            $item_tax_applied = true;
+                        } elseif ($tax_rate == 0 || stripos($tax_name, 'zero') !== false) {
+                            $line_tax = $this->getZohoTaxForRate(0, 'Zero', $zb);
+                            if (!empty($line_tax['tax_id'])) {
+                                $line_items[$i]['tax_id'] = $line_tax['tax_id'];
+                            }
+                            $line_items[$i]['tax_name'] = !empty($line_tax['tax_name']) ? $line_tax['tax_name'] : "Zero Rate";
+                            $line_items[$i]['tax_type'] = "tax";
+                            $line_items[$i]['tax_percentage'] = 0;
+                            $item_tax_applied = true;
                         }
                     }
+                }
+
+                $invoice_vat_treatment = isset($invoice_data['vat_treatment']) ? $invoice_data['vat_treatment'] : '';
+                if (!$item_tax_applied && ($invoice_vat_treatment === 'non_gcc' || $invoice_vat_treatment === 'gcc_vat_not_registered')) {
+                    $zero_tax = $this->getZohoTaxForRate(0, 'Zero', $zb);
+                    if (!empty($zero_tax['tax_id'])) {
+                        $line_items[$i]['tax_id'] = $zero_tax['tax_id'];
+                    }
+                    $line_items[$i]['tax_name'] = !empty($zero_tax['tax_name']) ? $zero_tax['tax_name'] : "Zero Rate";
+                    $line_items[$i]['tax_type'] = "tax";
+                    $line_items[$i]['tax_percentage'] = 0;
                 }
                 $i++;
             }
@@ -1390,7 +1407,7 @@ class Receipts extends Admin_controller
 
     }
 
-    protected function postZohoInvoice(ZohoBooks $zb, $invoice)
+    protected function postZohoInvoice($zb, $invoice)
     {
         if (!is_array($invoice)) {
             $invoice = (array)$invoice;
@@ -1456,6 +1473,25 @@ class Receipts extends Admin_controller
                 unset($invoice['invoice_number']);
                 $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
             }
+        }
+
+        // Handle Zero Rate tax required for export transaction error
+        if ($this->isZohoZeroRateTaxRequiredError($invoice_data)) {
+            $zero_tax = $this->getZohoTaxForRate(0, 'Zero', $zb);
+            if (isset($invoice['line_items']) && is_array($invoice['line_items'])) {
+                foreach ($invoice['line_items'] as &$li) {
+                    if (empty($li['tax_name']) || (isset($li['tax_percentage']) && (float)$li['tax_percentage'] == 0)) {
+                        if (!empty($zero_tax['tax_id'])) {
+                            $li['tax_id'] = $zero_tax['tax_id'];
+                        }
+                        $li['tax_name'] = !empty($zero_tax['tax_name']) ? $zero_tax['tax_name'] : 'Zero Rate';
+                        $li['tax_percentage'] = 0;
+                        $li['tax_type'] = 'tax';
+                    }
+                }
+                unset($li);
+            }
+            $invoice_data = json_decode($zb->postInvoice(json_encode($invoice)));
         }
 
         return $invoice_data;
@@ -1524,11 +1560,95 @@ class Receipts extends Admin_controller
             || (strpos($message, 'place of supply') !== false && strpos($message, 'invalid') !== false);
     }
 
+    protected function isZohoZeroRateTaxRequiredError($invoice_data)
+    {
+        if (empty($invoice_data) || empty($invoice_data->message)) {
+            return false;
+        }
+
+        $message = strtolower($invoice_data->message);
+
+        return strpos($message, 'zero rate') !== false
+            || strpos($message, 'export transaction') !== false;
+    }
+
+    protected $zohoTaxes = null;
+
+    protected function getZohoTaxes($zb = null)
+    {
+        if ($this->zohoTaxes !== null) {
+            return $this->zohoTaxes;
+        }
+
+        $this->zohoTaxes = [];
+        if ($zb === null) {
+            $zb = new ZohoBooks();
+        }
+
+        $response = $zb->getTaxes();
+        $data = $response ? json_decode($response) : null;
+        if (!empty($data) && isset($data->taxes) && is_array($data->taxes)) {
+            foreach ($data->taxes as $tax) {
+                $this->zohoTaxes[] = [
+                    'tax_id' => isset($tax->tax_id) ? (string)$tax->tax_id : '',
+                    'tax_name' => isset($tax->tax_name) ? (string)$tax->tax_name : '',
+                    'tax_percentage' => isset($tax->tax_percentage) ? (float)$tax->tax_percentage : 0.0,
+                    'tax_type' => isset($tax->tax_type) ? (string)$tax->tax_type : 'tax',
+                ];
+            }
+        }
+
+        return $this->zohoTaxes;
+    }
+
+    protected function getZohoTaxForRate($rate = 0, $name_hint = '', $zb = null)
+    {
+        $rate = (float)$rate;
+        $taxes = $this->getZohoTaxes($zb);
+
+        // 1. Try to find match with name hint and rate
+        if (!empty($name_hint) && !empty($taxes)) {
+            foreach ($taxes as $t) {
+                if (abs($t['tax_percentage'] - $rate) < 0.001 && stripos($t['tax_name'], $name_hint) !== false) {
+                    return $t;
+                }
+            }
+        }
+
+        // 2. Try matching rate in taxes
+        if (!empty($taxes)) {
+            foreach ($taxes as $t) {
+                if (abs($t['tax_percentage'] - $rate) < 0.001) {
+                    return $t;
+                }
+            }
+        }
+
+        // 3. Fallback to options / default values
+        if ($rate == 0) {
+            $zero_id = get_option('zoho_zero_vat_id');
+            return [
+                'tax_id' => $zero_id ? $zero_id : '',
+                'tax_name' => 'Zero Rate',
+                'tax_percentage' => 0,
+                'tax_type' => 'tax',
+            ];
+        }
+
+        $vat_id = get_option('zoho_vat_id');
+        return [
+            'tax_id' => $vat_id ? $vat_id : '',
+            'tax_name' => 'Standard Rate',
+            'tax_percentage' => 5,
+            'tax_type' => 'tax',
+        ];
+    }
+
     /**
      * @param $item
      * @return mixed
      */
-    public function getZohoItemId($item, ZohoBooks $zb = null)
+    public function getZohoItemId($item, $zb = null)
     {
         if (!is_array($item) || empty($item)) {
             return '';
@@ -1701,7 +1821,7 @@ class Receipts extends Admin_controller
         return $contact;
     }
 
-    protected function postZohoContact(ZohoBooks $zb, $contactData)
+    protected function postZohoContact($zb, $contactData)
     {
         $contactResponse = $zb->postContact(json_encode($contactData));
         $contactResult = json_decode($contactResponse);
@@ -1722,7 +1842,7 @@ class Receipts extends Admin_controller
         return true;
     }
 
-    protected function getOrCreateZohoContactId($client_id, ZohoBooks $zb, $currency_code = '')
+    protected function getOrCreateZohoContactId($client_id, $zb, $currency_code = '')
     {
         $client = $this->clients_model->get($client_id);
         $currency_code = normalize_receipt_currency_code($currency_code);
@@ -2040,10 +2160,15 @@ class Receipts extends Admin_controller
             exit;
         }
 
-        $transactionCurrencyCode = $this->getReceiptTransactionCurrencyCode(
-            $receipt,
-            $receiptInvoices
-        );
+        try {
+            $transactionCurrencyCode = $this->getReceiptTransactionCurrencyCode(
+                $receipt,
+                $receiptInvoices
+            );
+        } catch (Exception $e) {
+            echo $e->getMessage();
+            exit;
+        }
 
         $receipt['receipt_client_id'] =
             $this->getOrCreateZohoContactId(
@@ -2178,7 +2303,12 @@ protected function receiptJson($receipt_data)
 	        exit;
 	    }
 
-    $transaction_currency_code = $this->getReceiptTransactionCurrencyCode($receipt_data, $invoices);
+    try {
+        $transaction_currency_code = $this->getReceiptTransactionCurrencyCode($receipt_data, $invoices);
+    } catch (Exception $e) {
+        echo $e->getMessage();
+        exit;
+    }
     $base_currency_code = $this->getBaseCurrencyCode();
 
     /*
@@ -2477,16 +2607,14 @@ protected function getReceiptTransactionCurrencyCode($receipt_data, $invoices)
     $currency_codes = array_keys($invoice_currency_codes);
 
     if (count($currency_codes) > 1) {
-        echo 'Unable to post to Zoho: receipt is allocated to invoices with multiple currencies: ' . implode(', ', $invoice_currency_labels) . '.';
-        exit;
+        throw new Exception('Unable to post to Zoho: receipt is allocated to invoices with multiple currencies: ' . implode(', ', $invoice_currency_labels) . '.');
     }
 
     if (count($currency_codes) === 1) {
         if ($receipt_currency_code !== '' && $receipt_currency_code !== $currency_codes[0]) {
-            echo 'Unable to post to Zoho: receipt currency is ' . $receipt_currency_code
+            throw new Exception('Unable to post to Zoho: receipt currency is ' . $receipt_currency_code
                 . ', but allocated invoice currency is ' . $currency_codes[0]
-                . ' [' . implode(', ', $invoice_currency_labels) . ']. Please select invoices with ' . $receipt_currency_code . ' currency or change the receipt currency.';
-            exit;
+                . ' [' . implode(', ', $invoice_currency_labels) . ']. Please select invoices with ' . $receipt_currency_code . ' currency or change the receipt currency.');
         }
 
         return $currency_codes[0];
@@ -3118,7 +3246,12 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
 
         $client_company = !empty($client->company) ? $client->company : ('Client #' . $client->userid);
         $receipt_num = !empty($receipt['receipt_num']) ? strip_tags($receipt['receipt_num']) : ('#' . $receipt_id);
-        $transaction_currency_code = $this->getReceiptTransactionCurrencyCode($receipt, $receiptInvoices);
+        try {
+            $transaction_currency_code = $this->getReceiptTransactionCurrencyCode($receipt, $receiptInvoices);
+        } catch (Exception $e) {
+            $emit(['type' => 'error', 'step' => 'init', 'message' => $e->getMessage()]);
+            exit;
+        }
         $base_currency_code = $this->getBaseCurrencyCode();
 
         // Check deposit account & payment mode mapping
@@ -3156,33 +3289,40 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
             // Cheque or Bank Transfer
             $payment_mode = ($receipt_type === 'Cheque' || strcasecmp($receipt_type, 'cheque') === 0) ? 'check' : 'banktransfer';
             if (!$bank) {
-                $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: please select a deposit bank account for this receipt.']);
-                exit;
-            }
-            $bank_label = get_receipt_deposit_bank_label($bank);
-            if (empty($bank['account_id'])) {
-                $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: selected bank "' . $bank_label . '" is not linked with a Zoho account.']);
-                exit;
-            }
+                $default_bank = get_receipt_default_zoho_deposit_account($transaction_currency_code, $receipt_type);
+                if (!empty($default_bank) && !empty($default_bank['account_id'])) {
+                    $account_id = $default_bank['account_id'];
+                    $bank_label = $default_bank['name'];
+                } else {
+                    $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: please select a deposit bank account for this receipt.']);
+                    exit;
+                }
+            } else {
+                $bank_label = get_receipt_deposit_bank_label($bank);
+                if (empty($bank['account_id'])) {
+                    $emit(['type' => 'error', 'step' => 'receipt', 'message' => 'Unable to post to Zoho: selected bank "' . $bank_label . '" is not linked with a Zoho account.']);
+                    exit;
+                }
 
-            $bank_currency_code = !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '';
-            if (
-                $transaction_currency_code !== ''
-                && $bank_currency_code !== ''
-                && $transaction_currency_code !== $base_currency_code
-                && $transaction_currency_code !== $bank_currency_code
-            ) {
-                $emit([
-                    'type' => 'error',
-                    'step' => 'receipt',
-                    'message' => 'Unable to post to Zoho: selected bank "' . $bank_label . '" is ' . $bank_currency_code
-                        . ', but this receipt/invoice is ' . $transaction_currency_code
-                        . '. Please select a ' . $transaction_currency_code . ' bank account or change the receipt currency.'
-                ]);
-                exit;
-            }
+                $bank_currency_code = !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '';
+                if (
+                    $transaction_currency_code !== ''
+                    && $bank_currency_code !== ''
+                    && $transaction_currency_code !== $base_currency_code
+                    && $transaction_currency_code !== $bank_currency_code
+                ) {
+                    $emit([
+                        'type' => 'error',
+                        'step' => 'receipt',
+                        'message' => 'Unable to post to Zoho: selected bank "' . $bank_label . '" is ' . $bank_currency_code
+                            . ', but this receipt/invoice is ' . $transaction_currency_code
+                            . '. Please select a ' . $transaction_currency_code . ' bank account or change the receipt currency.'
+                    ]);
+                    exit;
+                }
 
-            $account_id = $bank['account_id'];
+                $account_id = $bank['account_id'];
+            }
         }
 
         $emit([
@@ -3236,6 +3376,9 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
                     'log_type' => 'info',
                     'message' => 'Checking Customer: ' . $client_company . ' — Already Exists in Zoho (Zoho Contact ID: ' . $zoho_contact_id . ')'
                 ]);
+            } else {
+                update_zoho_id('tblclients', 'userid', $client->userid, 'zoho_id', '');
+                $client->zoho_id = '';
             }
         }
 
@@ -3320,18 +3463,26 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
 
             $zoho_invoice_id = '';
             if (!empty($inv['zoho_id']) && strtoupper(trim($inv['zoho_id'])) !== 'NULL') {
-                $zoho_invoice_id = trim($inv['zoho_id']);
-                $emit([
-                    'type' => 'invoice_update',
-                    'index' => $idx,
-                    'total' => $invoices_count,
-                    'invoice_id' => $inv['invoiceid'],
-                    'invoice_number' => 'Inv ' . $idx . ' (' . $inv_label . ')',
-                    'status' => 'exists',
-                    'zoho_id' => $zoho_invoice_id,
-                    'log_type' => 'info',
-                    'message' => 'Inv ' . $idx . ' (' . $inv_label . '): already Exists in Zoho (ID: ' . $zoho_invoice_id . ')'
-                ]);
+                $inv_check_resp = $zb->getInvoice(trim($inv['zoho_id']));
+                $inv_check_data = $inv_check_resp ? json_decode($inv_check_resp) : null;
+
+                if (!empty($inv_check_data) && isset($inv_check_data->code) && (int)$inv_check_data->code === 0 && isset($inv_check_data->invoice->invoice_id)) {
+                    $zoho_invoice_id = $inv_check_data->invoice->invoice_id;
+                    $emit([
+                        'type' => 'invoice_update',
+                        'index' => $idx,
+                        'total' => $invoices_count,
+                        'invoice_id' => $inv['invoiceid'],
+                        'invoice_number' => 'Inv ' . $idx . ' (' . $inv_label . ')',
+                        'status' => 'exists',
+                        'zoho_id' => $zoho_invoice_id,
+                        'log_type' => 'info',
+                        'message' => 'Inv ' . $idx . ' (' . $inv_label . '): already Exists in Zoho (ID: ' . $zoho_invoice_id . ')'
+                    ]);
+                } else {
+                    $this->db->where('id', $inv['invoiceid']);
+                    $this->db->update('tblinvoices', ['zoho_id' => '']);
+                }
             } else {
                 $emit([
                     'type' => 'invoice_update',
@@ -3475,7 +3626,7 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
     /**
      * Helper to create an invoice during streaming without killing entire script abruptly
      */
-    protected function createInvoiceForStream($id, ZohoBooks $zb, $emit, $idx, $total_invoices, $inv_label)
+    protected function createInvoiceForStream($id, $zb, $emit, $idx, $total_invoices, $inv_label)
     {
         $where['type'] = 'invoice';
         $where['tblinvoices.id'] = $id;
@@ -3510,7 +3661,7 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
         }
         $invoice['clientid'] = $zoho_contact_id;
 
-        $invoice_payload = $this->invoiceJson($invoice);
+        $invoice_payload = $this->invoiceJson($invoice, $zb);
         $invoice_data = $this->postZohoInvoice($zb, $invoice_payload);
 
         if (empty($invoice_data) || !isset($invoice_data->code)) {
@@ -3538,7 +3689,7 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
     /**
      * Helper to get or create Zoho contact with emit callback
      */
-    protected function getOrCreateZohoContactIdInternal($client_id, ZohoBooks $zb, $currency_code = '', $emit = null)
+    protected function getOrCreateZohoContactIdInternal($client_id, $zb, $currency_code = '', $emit = null)
     {
         $client = $this->clients_model->get($client_id);
         $currency_code = normalize_receipt_currency_code($currency_code);
@@ -3701,7 +3852,7 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
             'message' => 'Posting invoice ' . $inv_label . ' to Zoho Books...'
         ]);
 
-        $invoice_payload = $this->invoiceJson($invoice);
+        $invoice_payload = $this->invoiceJson($invoice, $zb);
         $invoice_data = $this->postZohoInvoice($zb, $invoice_payload);
 
         if (empty($invoice_data) || !isset($invoice_data->code)) {

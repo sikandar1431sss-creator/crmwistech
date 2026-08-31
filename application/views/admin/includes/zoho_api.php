@@ -82,12 +82,20 @@
 <hr/>
 
 <div class="form-group">
-    <label for="zoho_access_token" class="control-label"><?= _l("settings_zoho_vat_id"); ?></label>
+    <label for="zoho_vat_id" class="control-label"><?= _l("settings_zoho_vat_id"); ?> (Standard 5%)</label>
     <input type="text"
            id="zoho_vat_id"
            name="settings[zoho_vat_id]"
            class="form-control"
            value="<?= get_option('zoho_vat_id'); ?>"/>
+</div>
+<div class="form-group">
+    <label for="zoho_zero_vat_id" class="control-label">Zoho Zero Rate Tax ID (0%)</label>
+    <input type="text"
+           id="zoho_zero_vat_id"
+           name="settings[zoho_zero_vat_id]"
+           class="form-control"
+           value="<?= get_option('zoho_zero_vat_id'); ?>"/>
 </div>
 
 <hr/>

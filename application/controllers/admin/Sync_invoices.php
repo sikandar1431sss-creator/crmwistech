@@ -313,18 +313,44 @@ class Sync_invoices extends Admin_controller
 
                 // get Item Tax
                 $item_taxes = get_invoice_item_taxes($item['id']);
+                $item_tax_applied = false;
 
                 if (count($item_taxes) > 0) {
                     foreach ($item_taxes as $taxes) {
+                        $tax_rate = isset($taxes['taxrate']) ? (float)$taxes['taxrate'] : 0.0;
+                        $tax_name = isset($taxes['taxname']) ? $taxes['taxname'] : '';
 
-                        if (strpos($taxes['taxname'], 'VAT|5.00') !== false) {
-                            $line_items[$i]['tax_id'] = get_option('zoho_vat_id');
+                        if ($tax_rate > 0 || stripos($tax_name, '5.00') !== false || (stripos($tax_name, 'vat') !== false && stripos($tax_name, 'zero') === false)) {
+                            $vat_id = get_option('zoho_vat_id');
+                            if (!empty($vat_id)) {
+                                $line_items[$i]['tax_id'] = $vat_id;
+                            }
                             $line_items[$i]['tax_name'] = "VAT";
                             $line_items[$i]['tax_type'] = "tax";
-                            $line_items[$i]['tax_percentage'] = $taxes['taxrate'];
-
+                            $line_items[$i]['tax_percentage'] = $tax_rate > 0 ? $tax_rate : 5;
+                            $item_tax_applied = true;
+                        } elseif ($tax_rate == 0 || stripos($tax_name, 'zero') !== false) {
+                            $zero_id = get_option('zoho_zero_vat_id');
+                            if (!empty($zero_id)) {
+                                $line_items[$i]['tax_id'] = $zero_id;
+                            }
+                            $line_items[$i]['tax_name'] = "Zero Rate";
+                            $line_items[$i]['tax_type'] = "tax";
+                            $line_items[$i]['tax_percentage'] = 0;
+                            $item_tax_applied = true;
                         }
                     }
+                }
+
+                $invoice_vat_treatment = isset($invoice_data['vat_treatment']) ? $invoice_data['vat_treatment'] : '';
+                if (!$item_tax_applied && ($invoice_vat_treatment === 'non_gcc' || $invoice_vat_treatment === 'gcc_vat_not_registered')) {
+                    $zero_id = get_option('zoho_zero_vat_id');
+                    if (!empty($zero_id)) {
+                        $line_items[$i]['tax_id'] = $zero_id;
+                    }
+                    $line_items[$i]['tax_name'] = "Zero Rate";
+                    $line_items[$i]['tax_type'] = "tax";
+                    $line_items[$i]['tax_percentage'] = 0;
                 }
                 $i++;
             }
@@ -394,7 +420,7 @@ class Sync_invoices extends Admin_controller
 
     }
 
-    protected function postZohoInvoice(ZohoBooks $zb, $invoice)
+    protected function postZohoInvoice($zb, $invoice)
     {
         if (!is_array($invoice)) {
             $invoice = (array)$invoice;
@@ -494,7 +520,7 @@ class Sync_invoices extends Admin_controller
             || (strpos($message, 'place of supply') !== false && strpos($message, 'invalid') !== false);
     }
 
-    protected function postZohoContact(ZohoBooks $zb, $contactData)
+    protected function postZohoContact($zb, $contactData)
     {
         $contactResponse = $zb->postContact(json_encode($contactData));
         $contactResult = json_decode($contactResponse);
@@ -546,7 +572,7 @@ class Sync_invoices extends Admin_controller
      * @param $item
      * @return mixed
      */
-    public function getZohoItemId($item, ZohoBooks $zb = null)
+    public function getZohoItemId($item, ?ZohoBooks $zb = null)
     {
         if (!is_array($item) || empty($item)) {
             return '';

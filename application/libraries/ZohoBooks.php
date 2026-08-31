@@ -49,6 +49,7 @@ class ZohoBooks
 	private $invoicesUrl = 'invoices/';
 	private $creditnotesUrl = 'creditnotes/';
     private $currenciesUrl = 'settings/currencies/';
+    private $taxesUrl = 'settings/taxes';
     private $ItemsUrl = 'items/';
 
 
@@ -464,6 +465,22 @@ class ZohoBooks
         $this->checkApiRequestsLimit();
 
         return $this->httpCode == 200 ? $currencies : false;
+    }
+
+    public function getTaxes()
+    {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $this->apiUrl . $this->taxesUrl . '?organization_id=' . $this->organizationId);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array("authorization: Zoho-oauthtoken " . $this->accessToken, "Content-Type: application/json"));
+        $taxes = curl_exec($ch);
+        $this->httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $this->checkApiRequestsLimit();
+
+        return $this->httpCode == 200 ? $taxes : false;
     }
 
 
