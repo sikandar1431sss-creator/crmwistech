@@ -476,6 +476,11 @@
                 $data['template']->subject = '';
             }
 
+            if (!empty($data['template']->message) && function_exists('get_invoice_email_bank_details_html')) {
+                $bank_details_html = get_invoice_email_bank_details_html($invoice);
+                $data['template']->message = replace_invoice_email_bank_details($data['template']->message, $bank_details_html);
+            }
+
             $data['invoices_to_merge'] = $this->invoices_model->check_for_merge_invoice($invoice->clientid, $id);
             if (!is_array($data['invoices_to_merge'])) {
                 $data['invoices_to_merge'] = [];

@@ -3,7 +3,6 @@
 $can_create_bankaccounts = is_admin() || has_permission('bankaccounts', '', 'create');
 $can_edit_bankaccounts = is_admin() || has_permission('bankaccounts', '', 'edit');
 $can_delete_bankaccounts = is_admin() || has_permission('bankaccounts', '', 'delete');
-$can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts;
 ?>
 <div id="wrapper">
     <div class="content">
@@ -14,15 +13,9 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
                         <div class="_buttons">
                             <?php if ($can_create_bankaccounts) { ?>
                                 <a href="<?= admin_url('bankaccounts/account'); ?>" class="btn btn-info pull-left">
-                                    <i class="fa fa-plus"></i> New Bank / Cash Account
+                                    Add New Account
                                 </a>
                             <?php } ?>
-                            <?php if ($can_sync_zoho_bankaccounts) { ?>
-                                <button type="button" class="btn btn-default pull-left mleft5" id="sync_zoho_bank_accounts">
-                                    <i class="fa fa-refresh"></i> Sync Zoho Accounts
-                                </button>
-                            <?php } ?>
-                            <span id="sync_zoho_bank_accounts_status" class="text-muted mleft10"></span>
                         </div>
                         <div class="clearfix"></div>
                         <hr class="hr-panel-heading"/>
@@ -50,9 +43,9 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
                                         <tr>
                                             <td>
                                                 <?php if ($is_cash) { ?>
-                                                    <span class="label label-warning"><i class="fa fa-money"></i> Cash</span>
+                                                    <span class="label label-warning">Cash</span>
                                                 <?php } else { ?>
-                                                    <span class="label label-info"><i class="fa fa-university"></i> Bank</span>
+                                                    <span class="label label-info">Bank</span>
                                                 <?php } ?>
                                             </td>
                                             <td><?= html_escape($bank_account['title']); ?></td>
@@ -104,46 +97,6 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
     </div>
 </div>
 <?php init_tail(); ?>
-<script>
-    $(function () {
-        $('#sync_zoho_bank_accounts').click(function () {
-            var $button = $(this);
-            var $status = $('#sync_zoho_bank_accounts_status');
-            var data = {};
-
-            if (typeof csrfData !== 'undefined') {
-                data[csrfData.token_name] = csrfData.hash;
-            }
-
-            $button.prop('disabled', true);
-            $status.removeClass('text-danger text-success').addClass('text-muted').text('Syncing...');
-
-            $.post(admin_url + 'bankaccounts/sync_zoho_accounts', data)
-                .done(function (response) {
-                    if (typeof response === 'string') {
-                        response = JSON.parse(response);
-                    }
-
-                    if (!response.success) {
-                        $status.removeClass('text-muted text-success').addClass('text-danger').text(response.message || 'Unable to sync Zoho accounts.');
-                        return;
-                    }
-
-                    $status.removeClass('text-muted text-danger').addClass('text-success').text(response.message);
-                    alert_float('success', response.message);
-                    setTimeout(function () {
-                        location.reload();
-                    }, 800);
-                })
-                .fail(function () {
-                    $status.removeClass('text-muted text-success').addClass('text-danger').text('Sync request failed.');
-                })
-                .always(function () {
-                    $button.prop('disabled', false);
-                });
-        });
-    });
-</script>
 </body>
 </html>
 

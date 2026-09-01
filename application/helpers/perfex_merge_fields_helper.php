@@ -443,6 +443,12 @@ function get_invoice_merge_fields($invoice_id, $payment_id = false)
     $fields['{invoice_date}'] = _d($invoice->date);
     $fields['{invoice_status}'] = format_invoice_status($invoice->status, '', false);
 
+    $bank_details_html = function_exists('get_invoice_email_bank_details_html')
+        ? get_invoice_email_bank_details_html($invoice)
+        : '';
+    $fields['{bank_details}'] = $bank_details_html;
+    $fields['{invoice_bank_details}'] = $bank_details_html;
+
     $custom_fields = get_custom_fields('invoice');
     foreach ($custom_fields as $field) {
         $fields['{' . $field['slug'] . '}'] = get_custom_field_value($invoice_id, $field['id'], 'invoice');

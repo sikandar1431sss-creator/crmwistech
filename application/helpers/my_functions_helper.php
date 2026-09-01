@@ -1016,6 +1016,90 @@ function get_invoice_bank_details_html($invoice)
     return $html;
 }
 
+function get_invoice_email_bank_details_html($invoice)
+{
+    $CI = &get_instance();
+    $bank_account_id = 0;
+
+    if (is_numeric($invoice)) {
+        $CI->db->select('id, bank_account_id');
+        $CI->db->where('id', (int)$invoice);
+        $invoice_row = $CI->db->get('tblinvoices')->row();
+        if ($invoice_row && isset($invoice_row->bank_account_id)) {
+            $bank_account_id = (int)$invoice_row->bank_account_id;
+        }
+    } elseif (is_object($invoice) && isset($invoice->bank_account_id)) {
+        $bank_account_id = (int)$invoice->bank_account_id;
+    } elseif (is_array($invoice) && isset($invoice['bank_account_id'])) {
+        $bank_account_id = (int)$invoice['bank_account_id'];
+    }
+
+    $bank = null;
+    if ($bank_account_id > 0 && $CI->db->table_exists('tblbankaccounts')) {
+        $bank = $CI->db
+            ->select('tblbankaccounts.*, tblcurrencies.name as currency_name')
+            ->from('tblbankaccounts')
+            ->join('tblcurrencies', 'tblcurrencies.id = tblbankaccounts.currency_id', 'left')
+            ->where('tblbankaccounts.id', $bank_account_id)
+            ->get()
+            ->row();
+    }
+
+    // Default fallback bank details if no bank is selected or not found
+    if (!$bank) {
+        return '<strong>Account Title:</strong> Wisdom Information Technology Solutions LLC<br />'
+            . '<strong>Bank:</strong> RAK Bank<br />'
+            . '<strong>Account Number:</strong> 0122341006001<br />'
+            . '<strong>IBAN:</strong> AE57 0400 0001 2234 1006 001';
+    }
+
+    $account_type = isset($bank->account_type) ? strtolower(trim((string)$bank->account_type)) : 'bank';
+    $title = !empty($bank->title) ? trim($bank->title) : 'Wisdom Information Technology Solutions LLC';
+    $bank_name = !empty($bank->full_bank_name) ? trim($bank->full_bank_name) : (!empty($bank->bank_nick_name) ? trim($bank->bank_nick_name) : '');
+
+    $lines = [];
+    $lines[] = '<strong>Account Title:</strong> ' . html_escape($title);
+
+    if ($account_type === 'cash') {
+        $lines[] = '<strong>Account Type:</strong> Cash';
+        if ($bank_name !== '') {
+            $lines[] = '<strong>Cash Account:</strong> ' . html_escape($bank_name);
+        }
+    } else {
+        if ($bank_name !== '') {
+            $lines[] = '<strong>Bank:</strong> ' . html_escape($bank_name);
+        }
+        if (!empty($bank->iban)) {
+            $lines[] = '<strong>Account Number / IBAN:</strong> ' . html_escape($bank->iban);
+        }
+        if (!empty($bank->swift)) {
+            $lines[] = '<strong>Swift:</strong> ' . html_escape($bank->swift);
+        }
+    }
+
+    return implode('<br />', $lines);
+}
+
+function replace_invoice_email_bank_details($message, $bank_details_html)
+{
+    if (empty($message)) {
+        return $message;
+    }
+
+    $message = str_replace(
+        ['{bank_details}', '{invoice_bank_details}'],
+        $bank_details_html,
+        $message
+    );
+
+    $pattern = '/<p>\s*<strong>\s*Account Title:\s*<\/strong>.*?<strong>\s*IBAN:\s*<\/strong>\s*AE57\s*0400\s*0001\s*2234\s*1006\s*001\s*<\/p>/is';
+    if (preg_match($pattern, $message)) {
+        $message = preg_replace($pattern, '<p>' . $bank_details_html . '</p>', $message);
+    }
+
+    return $message;
+}
+
 function get_receipt_invoice_payment_mode_id($receipt_type, $fallback = 1)
 {
     $receipt_type = strtolower(trim((string) $receipt_type));

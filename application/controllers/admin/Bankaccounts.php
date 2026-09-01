@@ -62,7 +62,7 @@ class Bankaccounts extends Admin_controller
             $data['title'] = 'Edit ' . $type_title;
         } else {
             $data['bank_account'] = null;
-            $data['title'] = 'New Bank / Cash Account';
+            $data['title'] = 'Add New Account';
         }
 
         $data['currencies'] = $this->currencies_model->get();
