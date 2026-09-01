@@ -974,7 +974,7 @@ class Receipts extends Admin_controller
 
         $receipt_type = isset($post['data']['type']) ? strtolower(trim($post['data']['type'])) : '';
 
-        if ($receipt_type === 'cash' || $receipt_type === 'stripe') {
+        if ($receipt_type === 'stripe') {
             return '';
         }
 
@@ -992,9 +992,10 @@ class Receipts extends Admin_controller
         $bank_currency_code = normalize_receipt_currency_code($bank['currency_code']);
 
         if ($receipt_currency_code !== '' && $bank_currency_code !== '' && $receipt_currency_code !== $bank_currency_code) {
-            return 'Selected bank currency is ' . $bank_currency_code
+            $account_label = ($receipt_type === 'cash') ? 'cash account' : 'bank';
+            return 'Selected ' . $account_label . ' currency is ' . $bank_currency_code
                 . ', but receipt currency is ' . $receipt_currency_code
-                . '. Please select a matching bank account or change the receipt currency.';
+                . '. Please select a matching ' . $account_label . ' or change the receipt currency.';
         }
 
         return '';
@@ -3267,8 +3268,24 @@ protected function assertZohoInvoiceCustomerMatchesReceipt($invoice, $zoho_invoi
         if ($receipt_type === 'Cash' || strcasecmp($receipt_type, 'cash') === 0) {
             $payment_mode = 'cash';
             if ($bank && !empty($bank['account_id'])) {
-                $account_id = $bank['account_id'];
                 $bank_label = get_receipt_deposit_bank_label($bank);
+                $bank_currency_code = !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : '';
+                if (
+                    $transaction_currency_code !== ''
+                    && $bank_currency_code !== ''
+                    && $transaction_currency_code !== $base_currency_code
+                    && $transaction_currency_code !== $bank_currency_code
+                ) {
+                    $emit([
+                        'type' => 'error',
+                        'step' => 'receipt',
+                        'message' => 'Unable to post to Zoho: selected cash account "' . $bank_label . '" is ' . $bank_currency_code
+                            . ', but this receipt/invoice is ' . $transaction_currency_code
+                            . '. Please select a ' . $transaction_currency_code . ' cash account or change the receipt currency.'
+                    ]);
+                    exit;
+                }
+                $account_id = $bank['account_id'];
             } else {
                 $default_account = get_receipt_default_zoho_deposit_account($transaction_currency_code, 'Cash');
                 $account_id = $default_account['account_id'];

@@ -364,7 +364,7 @@
             $data['base_currency'] = $this->currencies_model->get_base_currency();
 
             $this->load->model('bankaccounts_model');
-            $data['bank_accounts'] = $this->bankaccounts_model->get('', true);
+            $data['bank_accounts'] = $this->bankaccounts_model->get('', true, 'bank');
 
             $data['staff'] = $this->staff_model->get('', ['active' => 1]);
             $data['title'] = $title;

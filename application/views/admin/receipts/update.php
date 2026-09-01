@@ -176,15 +176,22 @@ $csrf = array(
                                 ?>
                                 <div class="col-md-3">
                                     <div class="form-group">
-	                                        <label for="type">Deposit To</label>
+	                                        <label for="deposit_to">Deposit To (Bank)</label>
 	                                        <select id="deposit_to" name="data[bank]" class="form-control">
-	                                            <?= get_receipt_deposit_bank_options($receipts->deposit_bank, $receipts->receipt_currency); ?>
+	                                            <?= get_receipt_deposit_bank_options($receipts->deposit_bank, $receipts->receipt_currency, 'bank'); ?>
 	                                        </select>
                                     </div>
                                 </div>
-
+                            <?php } elseif ($receipts->receipt_type == 'Cash') { ?>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+	                                        <label for="deposit_to">Deposit To (Cash Account)</label>
+	                                        <select id="deposit_to" name="data[bank]" class="form-control">
+	                                            <?= get_receipt_deposit_bank_options($receipts->deposit_bank, $receipts->receipt_currency, 'cash'); ?>
+	                                        </select>
+                                    </div>
+                                </div>
                             <?php } ?>
-
                         </div>
 
 	                        <div class="col-md-3">
@@ -428,12 +435,20 @@ $csrf = array(
 	            $("#amount_total").text('0');
 	        }
 
-		        function getReceiptDepositBanksForCurrency() {
+		        function getReceiptDepositBanksForCurrency(accountType) {
 		            var receiptCurrencyCode = getReceiptCurrencyCode();
 		            var banks = [];
+		            accountType = (accountType || 'bank').toLowerCase();
 
 		            $.each(receiptDepositBanks, function (_, bank) {
 		                var bankCurrencyCode = $.trim(bank.currency_code || '').toUpperCase();
+		                var bankType = $.trim(bank.account_type || bank.type || 'bank').toLowerCase();
+		                var isBankCash = (bankType === 'cash' || bankType === 'petty_cash');
+		                var normType = isBankCash ? 'cash' : 'bank';
+
+		                if (normType !== accountType) {
+		                    return;
+		                }
 
 		                if (receiptCurrencyCode && bankCurrencyCode && bankCurrencyCode === receiptCurrencyCode) {
 		                    banks.push(bank);
@@ -443,13 +458,15 @@ $csrf = array(
 		            return banks;
 		        }
 
-	        function getReceiptDepositBankOptions(selected) {
+	        function getReceiptDepositBankOptions(selected, accountType) {
 	            var bankOptions = '';
-	            var banks = getReceiptDepositBanksForCurrency();
+	            accountType = (accountType || 'bank').toLowerCase();
+	            var banks = getReceiptDepositBanksForCurrency(accountType);
 	            var receiptCurrencyCode = getReceiptCurrencyCode();
+	            var typeWord = (accountType === 'cash') ? 'cash' : 'bank';
 
 	            if (!banks || banks.length === 0) {
-	                return '<option value="">No bank account added for ' + $('<div>').text(receiptCurrencyCode || 'selected').html() + ' currency</option>';
+	                return '<option value="">No ' + typeWord + ' account added for ' + $('<div>').text(receiptCurrencyCode || 'selected').html() + ' currency</option>';
 	            }
 
 	            var selectedBankCode = '';
@@ -474,15 +491,17 @@ $csrf = array(
 	            return bankOptions;
 	        }
 
-        function buildDepositBankHtml(selected) {
+        function buildDepositBankHtml(selected, accountType) {
+            accountType = (accountType || 'bank').toLowerCase();
+            var labelText = (accountType === 'cash') ? 'Deposit To (Cash Account)' : 'Deposit To (Bank)';
             var bankHtml = '';
 
             bankHtml += '<div class="col-md-3">';
             bankHtml += '<div class="form-group">';
-            bankHtml += '<label for="type">Deposit To</label>';
+            bankHtml += '<label for="deposit_to">' + labelText + '</label>';
             bankHtml += '<select id="deposit_to" name="data[bank]" class="form-control">';
-            bankHtml += getReceiptDepositBankOptions(selected || '');
-            bankHtml += ' </select>';
+            bankHtml += getReceiptDepositBankOptions(selected || '', accountType);
+            bankHtml += '</select>';
             bankHtml += '<p id="receipt_bank_currency_error" class="text-danger mtop5" style="display:none;"></p>';
             bankHtml += '</div>';
             bankHtml += '</div>';
@@ -508,24 +527,26 @@ $csrf = array(
 	                enforceDisable = true;
 	            }
 
-	            var type = $("#receipt_type").val();
+	            var rawType = $.trim($("#receipt_type").val() || '').toLowerCase();
+	            var isCash = (rawType === 'cash');
 	            var bankCode = $("#deposit_to").val();
 	            var selectedBank = getSelectedReceiptBank(bankCode);
 	            var $error = $("#receipt_bank_currency_error");
 
-            if (type == 'Cash' || type == 'Stripe' || !bankCode || !selectedBank || !selectedBank.currency_code) {
-                $error.hide().text('');
-                $("#savePayments").prop('disabled', false);
-                return true;
-            }
+	            if (rawType === 'stripe' || !bankCode || !selectedBank || !selectedBank.currency_code) {
+	                $error.hide().text('');
+	                $("#savePayments").prop('disabled', false);
+	                return true;
+	            }
 
-            var receiptCurrencyCode = getReceiptCurrencyCode();
-            var bankCurrencyCode = $.trim(selectedBank.currency_code).toUpperCase();
+	            var receiptCurrencyCode = getReceiptCurrencyCode();
+	            var bankCurrencyCode = $.trim(selectedBank.currency_code).toUpperCase();
 
 	            if (receiptCurrencyCode && bankCurrencyCode && receiptCurrencyCode !== bankCurrencyCode) {
-	                var message = 'Selected bank currency ' + bankCurrencyCode + ' does not match receipt currency ' + receiptCurrencyCode + '.';
+	                var accTypeWord = isCash ? 'cash account' : 'bank';
+	                var message = 'Selected ' + accTypeWord + ' currency ' + bankCurrencyCode + ' does not match receipt currency ' + receiptCurrencyCode + '.';
 	                if (enforceDisable) {
-	                    $error.text(message).show();
+	                    $error.text(message).removeClass('text-muted').addClass('text-danger').show();
 	                    $("#savePayments").prop('disabled', true);
 	                } else {
 	                    $error.hide().text('');
@@ -581,54 +602,66 @@ $csrf = array(
         }
 
 	        function refreshDepositBanksForCurrency() {
-	            var type = $("#receipt_type").val();
+	            var rawType = $.trim($("#receipt_type").val() || '').toLowerCase();
 
-	            if (type != 'Cash' && type != 'Stripe') {
-	                $("#bank_dropdown").html(buildDepositBankHtml($("#deposit_to").val()));
-		                if (getReceiptDepositBanksForCurrency().length === 0) {
-		                    $("#receipt_bank_currency_error").text('No bank account added for ' + (getReceiptCurrencyCode() || 'selected') + ' currency.').show();
-		                    $("#savePayments").prop('disabled', true);
-		                } else {
-		                    refreshReceiptBankCurrencyValidation(receiptFormReady);
-		                }
-	            } else {
+	            if (rawType === 'stripe') {
+	                $("#bank_dropdown").html('');
 	                $("#savePayments").prop('disabled', false);
+	            } else if (rawType === 'cash') {
+	                var cashBanks = getReceiptDepositBanksForCurrency('cash');
+	                $("#bank_dropdown").html(buildDepositBankHtml($("#deposit_to").val(), 'cash'));
+	                if (cashBanks.length === 0) {
+	                    $("#receipt_bank_currency_error").text('No cash account added for ' + (getReceiptCurrencyCode() || 'selected') + ' currency. Zoho Petty Cash default will be used.').removeClass('text-danger').addClass('text-muted').show();
+	                    $("#savePayments").prop('disabled', false);
+	                } else {
+	                    refreshReceiptBankCurrencyValidation(receiptFormReady);
+	                }
+	            } else {
+	                // Cheque or Bank Transfer
+	                var banks = getReceiptDepositBanksForCurrency('bank');
+	                $("#bank_dropdown").html(buildDepositBankHtml($("#deposit_to").val(), 'bank'));
+	                if (banks.length === 0) {
+	                    $("#receipt_bank_currency_error").text('No bank account added for ' + (getReceiptCurrencyCode() || 'selected') + ' currency.').removeClass('text-muted').addClass('text-danger').show();
+	                    $("#savePayments").prop('disabled', true);
+	                } else {
+	                    refreshReceiptBankCurrencyValidation(receiptFormReady);
+	                }
 	            }
-        }
+	        }
 
-        function enforceCustomerCurrency(callback) {
-            var client = $("#customer").val();
+	        function enforceCustomerCurrency(callback) {
+	            var client = $("#customer").val();
 
-            if (client != "" && client != "undefined") {
-                applyCustomerCurrency(client, function () {
-                    refreshDepositBanksForCurrency();
-                    if (typeof callback === 'function') {
-                        callback();
-                    }
-                });
-            } else {
-                refreshDepositBanksForCurrency();
-                if (typeof callback === 'function') {
-                    callback();
-                }
-            }
-        }
+	            if (client != "" && client != "undefined") {
+	                applyCustomerCurrency(client, function () {
+	                    refreshDepositBanksForCurrency();
+	                    if (typeof callback === 'function') {
+	                        callback();
+	                    }
+	                });
+	            } else {
+	                refreshDepositBanksForCurrency();
+	                if (typeof callback === 'function') {
+	                    callback();
+	                }
+	            }
+	        }
 
-        function applyCustomerCurrency(client, callback) {
-            if (client == "" || client == "undefined") {
-                updateReceiptCurrencyNotice(null);
-                if (typeof callback === 'function') {
-                    callback();
-                }
-                return;
-            }
+	        function applyCustomerCurrency(client, callback) {
+	            if (client == "" || client == "undefined") {
+	                updateReceiptCurrencyNotice(null);
+	                if (typeof callback === 'function') {
+	                    callback();
+	                }
+	                return;
+	            }
 
-            $.ajax({
-                url: '<?php echo base_url();?>admin/receipts/client_currency/' + client,
-                type: 'GET',
-                dataType: 'json',
-                success: function (response) {
-                    updateReceiptCurrencyNotice(response);
+	            $.ajax({
+	                url: '<?php echo base_url();?>admin/receipts/client_currency/' + client,
+	                type: 'GET',
+	                dataType: 'json',
+	                success: function (response) {
+	                    updateReceiptCurrencyNotice(response);
 
 	                    if (response && response.success && response.id) {
 	                        $("#receipt_currency").val(response.id);
@@ -638,17 +671,17 @@ $csrf = array(
 	                        updateReceiptCurrencyDisplay(response.currency_code || response.name);
 	                    }
 
-                    if (typeof callback === 'function') {
-                        callback();
-                    }
-                },
-                error: function () {
-                    if (typeof callback === 'function') {
-                        callback();
-                    }
-                }
-            });
-        }
+	                    if (typeof callback === 'function') {
+	                        callback();
+	                    }
+	                },
+	                error: function () {
+	                    if (typeof callback === 'function') {
+	                        callback();
+	                    }
+	                }
+	            });
+	        }
 
 	        function loadClientInvoices() {
 		            var client = $("#customer").val();
@@ -669,9 +702,9 @@ $csrf = array(
 	                success: function (data) {
 	                    var obj = null;
 	                    try {
-                        obj = JSON.parse(data);
-                    } catch (ex) {
-                        // Invalid JSON (likely an error page). Do not overwrite existing invoice rows.
+	                        obj = JSON.parse(data);
+	                    } catch (ex) {
+	                        // Invalid JSON (likely an error page). Do not overwrite existing invoice rows.
 	                        console.log('clients_invoices: invalid json response', ex, data);
 		                        return;
 		                    }
@@ -690,11 +723,11 @@ $csrf = array(
 	                        }
 	                    }
 	                },
-                error: function (e) {
-                    console.log(e);
-                }
-            });
-        }
+	                error: function (e) {
+	                    console.log(e);
+	                }
+	            });
+	        }
 
         var html = '';
 
@@ -746,7 +779,6 @@ $csrf = array(
 
 
         $("#receipt_type").change(function (event) {
-
             event.preventDefault();
             var type = $(this).val();
 
@@ -756,13 +788,7 @@ $csrf = array(
                 $("#cheque_date").html("");
             }
 
-	            if(type == 'Cash' || type == 'Stripe'){
-	                $("#bank_dropdown").html('');
-	                $("#savePayments").prop('disabled', false);
-	            }else{
-	                refreshDepositBanksForCurrency();
-	            }
-
+            refreshDepositBanksForCurrency();
         });
 
 	        $("#receipt_currency").change(function () {

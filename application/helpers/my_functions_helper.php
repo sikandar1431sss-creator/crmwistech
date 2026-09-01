@@ -536,7 +536,7 @@ function normalize_receipt_deposit_banks($banks)
     return $normalized;
 }
 
-function get_receipt_deposit_bankaccounts_from_database($include_inactive = false, $currency = '')
+function get_receipt_deposit_bankaccounts_from_database($include_inactive = false, $currency = '', $account_type = '')
 {
     $CI = &get_instance();
 
@@ -554,6 +554,10 @@ function get_receipt_deposit_bankaccounts_from_database($include_inactive = fals
         $CI->db->where('tblbankaccounts.active', 1);
     }
 
+    if ($account_type !== '' && $CI->db->field_exists('account_type', 'tblbankaccounts')) {
+        $CI->db->where('tblbankaccounts.account_type', strtolower($account_type));
+    }
+
     $CI->db->order_by('tblbankaccounts.bank_nick_name', 'ASC');
     $rows = $CI->db->get()->result_array();
     $banks = [];
@@ -561,8 +565,13 @@ function get_receipt_deposit_bankaccounts_from_database($include_inactive = fals
     foreach ($rows as $row) {
         $name = trim($row['bank_nick_name']) !== '' ? $row['bank_nick_name'] : $row['full_bank_name'];
         $bank_currency_code = normalize_receipt_currency_code($row['currency_code']);
+        $row_type = (isset($row['account_type']) && in_array(strtolower($row['account_type']), ['bank', 'cash'])) ? strtolower($row['account_type']) : 'bank';
 
         if ($name === '') {
+            continue;
+        }
+
+        if ($account_type !== '' && $row_type !== strtolower($account_type)) {
             continue;
         }
 
@@ -578,7 +587,8 @@ function get_receipt_deposit_bankaccounts_from_database($include_inactive = fals
             'account_id' => $row['zoho_account_id'],
             'active' => (int)$row['active'],
             'account_number' => $row['iban'],
-            'account_type' => $row['title'],
+            'account_type' => $row_type,
+            'type' => $row_type,
             'currency_id' => $row['currency_id'],
             'currency_code' => $bank_currency_code,
             'current_balance' => '',
@@ -679,7 +689,7 @@ function normalize_receipt_currency_code($currency = '')
     return $currency;
 }
 
-function get_receipt_legacy_deposit_banks($include_inactive = false, $currency = '')
+function get_receipt_legacy_deposit_banks($include_inactive = false, $currency = '', $account_type = '')
 {
     $banks = normalize_receipt_deposit_banks(get_option('receipt_deposit_banks'));
 
@@ -688,10 +698,20 @@ function get_receipt_legacy_deposit_banks($include_inactive = false, $currency =
     }
 
     $currency_code = get_receipt_currency_code($currency);
+    $account_type = strtolower(trim((string)$account_type));
 
-    $banks = array_values(array_filter($banks, function ($bank) use ($include_inactive, $currency_code) {
+    $banks = array_values(array_filter($banks, function ($bank) use ($include_inactive, $currency_code, $account_type) {
         if (!$include_inactive && isset($bank['active']) && (int) $bank['active'] !== 1) {
             return false;
+        }
+
+        if ($account_type !== '') {
+            $raw_type = isset($bank['account_type']) ? strtolower($bank['account_type']) : 'bank';
+            $is_cash = in_array($raw_type, ['cash', 'petty_cash', 'petty cash']);
+            $bank_type = $is_cash ? 'cash' : 'bank';
+            if ($bank_type !== $account_type) {
+                return false;
+            }
         }
 
         if ($currency_code === '') {
@@ -708,15 +728,15 @@ function get_receipt_legacy_deposit_banks($include_inactive = false, $currency =
     return $banks;
 }
 
-function get_receipt_deposit_banks($include_inactive = false, $currency = '')
+function get_receipt_deposit_banks($include_inactive = false, $currency = '', $account_type = '')
 {
-    $database_banks = get_receipt_deposit_bankaccounts_from_database($include_inactive, $currency);
+    $database_banks = get_receipt_deposit_bankaccounts_from_database($include_inactive, $currency, $account_type);
 
     if (!empty($database_banks) || has_receipt_deposit_bankaccounts_in_database()) {
         return $database_banks;
     }
 
-    return get_receipt_legacy_deposit_banks($include_inactive, $currency);
+    return get_receipt_legacy_deposit_banks($include_inactive, $currency, $account_type);
 }
 
 function get_receipt_deposit_banks_setting_json()
@@ -740,33 +760,63 @@ function get_receipt_default_zoho_deposit_account($currency_code = '', $receipt_
     $currency_code = normalize_receipt_currency_code($currency_code);
     $receipt_type = strtolower(trim((string)$receipt_type));
 
-    // For Cash in AED (base currency), default to Zoho Petty Cash account
-    if ($receipt_type === 'cash' && ($currency_code === '' || $currency_code === 'AED')) {
-        return [
-            'account_id' => '1256346000000000361',
-            'name' => 'Petty Cash',
-            'currency_code' => 'AED',
-        ];
-    }
-
-    // Look for matching bank/cash account in active CRM deposit banks for this currency
-    if ($currency_code !== '') {
-        $matching_banks = get_receipt_deposit_banks(false, $currency_code);
-        if (!empty($matching_banks)) {
-            foreach ($matching_banks as $bank) {
-                if (!empty($bank['account_id'])) {
+    // Look for matching cash/bank account in active CRM accounts for this currency & type
+    if ($receipt_type === 'cash') {
+        $matching_cash_accounts = get_receipt_deposit_banks(false, $currency_code, 'cash');
+        if (!empty($matching_cash_accounts)) {
+            foreach ($matching_cash_accounts as $account) {
+                if (!empty($account['account_id'])) {
                     return [
-                        'account_id' => $bank['account_id'],
-                        'name' => get_receipt_deposit_bank_label($bank),
-                        'currency_code' => !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : $currency_code,
+                        'account_id' => $account['account_id'],
+                        'name' => get_receipt_deposit_bank_label($account),
+                        'currency_code' => !empty($account['currency_code']) ? normalize_receipt_currency_code($account['currency_code']) : $currency_code,
                     ];
+                }
+            }
+        }
+
+        // For Cash in AED (base currency), default to Zoho Petty Cash account
+        if ($currency_code === '' || $currency_code === 'AED') {
+            return [
+                'account_id' => '1256346000000000361',
+                'name' => 'Petty Cash',
+                'currency_code' => 'AED',
+            ];
+        }
+
+        // Fallback to any active cash account in database
+        $all_cash_accounts = get_receipt_deposit_banks(false, '', 'cash');
+        if (!empty($all_cash_accounts)) {
+            foreach ($all_cash_accounts as $account) {
+                if (!empty($account['account_id'])) {
+                    return [
+                        'account_id' => $account['account_id'],
+                        'name' => get_receipt_deposit_bank_label($account),
+                        'currency_code' => !empty($account['currency_code']) ? normalize_receipt_currency_code($account['currency_code']) : '',
+                    ];
+                }
+            }
+        }
+    } else {
+        // Look for matching bank account for this currency
+        if ($currency_code !== '') {
+            $matching_banks = get_receipt_deposit_banks(false, $currency_code, 'bank');
+            if (!empty($matching_banks)) {
+                foreach ($matching_banks as $bank) {
+                    if (!empty($bank['account_id'])) {
+                        return [
+                            'account_id' => $bank['account_id'],
+                            'name' => get_receipt_deposit_bank_label($bank),
+                            'currency_code' => !empty($bank['currency_code']) ? normalize_receipt_currency_code($bank['currency_code']) : $currency_code,
+                        ];
+                    }
                 }
             }
         }
     }
 
     // Fallback to active banks in database
-    $all_banks = get_receipt_deposit_banks(false);
+    $all_banks = get_receipt_deposit_banks(false, '', 'bank');
     if (!empty($all_banks)) {
         foreach ($all_banks as $bank) {
             if (!empty($bank['account_id'])) {
@@ -877,14 +927,15 @@ function get_receipt_deposit_bank_label($bank)
     return $label;
 }
 
-function get_receipt_deposit_bank_options($selected = '', $currency = '')
+function get_receipt_deposit_bank_options($selected = '', $currency = '', $account_type = 'bank')
 {
     $options = '';
-    $banks = get_receipt_deposit_banks(false, $currency);
+    $banks = get_receipt_deposit_banks(false, $currency, $account_type);
     $currency_code = get_receipt_currency_code($currency);
+    $type_word = ($account_type === 'cash') ? 'cash' : 'bank';
 
     if (empty($banks)) {
-        return '<option value="">No bank account added for ' . html_escape($currency_code ?: 'selected') . ' currency</option>';
+        return '<option value="">No ' . $type_word . ' account added for ' . html_escape($currency_code ?: 'selected') . ' currency</option>';
     }
 
     $selected_bank_code = '';
@@ -908,6 +959,12 @@ function get_receipt_deposit_bank_options($selected = '', $currency = '')
 
     return $options;
 }
+
+function get_receipt_deposit_cash_options($selected = '', $currency = '')
+{
+    return get_receipt_deposit_bank_options($selected, $currency, 'cash');
+}
+
 
 function get_invoice_bank_account_details($invoice)
 {

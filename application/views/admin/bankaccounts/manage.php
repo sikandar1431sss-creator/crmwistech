@@ -14,12 +14,12 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
                         <div class="_buttons">
                             <?php if ($can_create_bankaccounts) { ?>
                                 <a href="<?= admin_url('bankaccounts/account'); ?>" class="btn btn-info pull-left">
-                                    New Bank Account
+                                    <i class="fa fa-plus"></i> New Bank / Cash Account
                                 </a>
                             <?php } ?>
                             <?php if ($can_sync_zoho_bankaccounts) { ?>
                                 <button type="button" class="btn btn-default pull-left mleft5" id="sync_zoho_bank_accounts">
-                                    <i class="fa fa-refresh"></i> Sync Zoho Bank Accounts
+                                    <i class="fa fa-refresh"></i> Sync Zoho Accounts
                                 </button>
                             <?php } ?>
                             <span id="sync_zoho_bank_accounts_status" class="text-muted mleft10"></span>
@@ -31,12 +31,13 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
                             <table class="table table-striped">
                                 <thead>
                                 <tr>
+                                    <th>Type</th>
                                     <th>Title</th>
                                     <th>Nick Name</th>
-                                    <th>Full Bank Name</th>
+                                    <th>Full Name</th>
                                     <th>Currency</th>
                                     <th>Zoho Account</th>
-                                    <th>IBAN</th>
+                                    <th>IBAN / Acc #</th>
                                     <th>Swift</th>
                                     <th>Active</th>
                                     <th>Options</th>
@@ -45,11 +46,19 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
                                 <tbody>
                                 <?php if (!empty($bank_accounts)) { ?>
                                     <?php foreach ($bank_accounts as $bank_account) { ?>
+                                        <?php $is_cash = (isset($bank_account['account_type']) && $bank_account['account_type'] === 'cash'); ?>
                                         <tr>
+                                            <td>
+                                                <?php if ($is_cash) { ?>
+                                                    <span class="label label-warning"><i class="fa fa-money"></i> Cash</span>
+                                                <?php } else { ?>
+                                                    <span class="label label-info"><i class="fa fa-university"></i> Bank</span>
+                                                <?php } ?>
+                                            </td>
                                             <td><?= html_escape($bank_account['title']); ?></td>
                                             <td>
                                                 <?php if ($can_edit_bankaccounts) { ?>
-                                                    <a href="<?= admin_url('bankaccounts/account/' . $bank_account['id']); ?>">
+                                                    <a href="<?= admin_url('bankaccounts/account/' . $bank_account['id']); ?>" class="bold">
                                                         <?= html_escape($bank_account['bank_nick_name']); ?>
                                                     </a>
                                                 <?php } else { ?>
@@ -57,12 +66,12 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
                                                 <?php } ?>
                                             </td>
                                             <td><?= html_escape($bank_account['full_bank_name']); ?></td>
-                                            <td><?= html_escape($bank_account['currency_code']); ?></td>
+                                            <td><span class="label label-default"><?= html_escape($bank_account['currency_code']); ?></span></td>
                                             <td>
                                                 <?= html_escape($bank_account['zoho_account_name']); ?>
                                             </td>
-                                            <td><?= html_escape($bank_account['iban']); ?></td>
-                                            <td><?= html_escape($bank_account['swift']); ?></td>
+                                            <td><?= !empty($bank_account['iban']) ? html_escape($bank_account['iban']) : '<span class="text-muted">-</span>'; ?></td>
+                                            <td><?= !empty($bank_account['swift']) ? html_escape($bank_account['swift']) : '<span class="text-muted">-</span>'; ?></td>
                                             <td>
                                                 <?php if ((int)$bank_account['active'] === 1) { ?>
                                                     <span class="label label-success">Yes</span>
@@ -82,7 +91,7 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
                                     <?php } ?>
                                 <?php } else { ?>
                                     <tr>
-                                        <td colspan="9" class="text-muted">No bank accounts found.</td>
+                                        <td colspan="10" class="text-muted">No bank or cash accounts found.</td>
                                     </tr>
                                 <?php } ?>
                                 </tbody>
@@ -116,12 +125,15 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
                     }
 
                     if (!response.success) {
-                        $status.removeClass('text-muted text-success').addClass('text-danger').text(response.message || 'Unable to sync Zoho bank accounts.');
+                        $status.removeClass('text-muted text-success').addClass('text-danger').text(response.message || 'Unable to sync Zoho accounts.');
                         return;
                     }
 
                     $status.removeClass('text-muted text-danger').addClass('text-success').text(response.message);
                     alert_float('success', response.message);
+                    setTimeout(function () {
+                        location.reload();
+                    }, 800);
                 })
                 .fail(function () {
                     $status.removeClass('text-muted text-success').addClass('text-danger').text('Sync request failed.');
@@ -134,3 +146,4 @@ $can_sync_zoho_bankaccounts = $can_create_bankaccounts || $can_edit_bankaccounts
 </script>
 </body>
 </html>
+

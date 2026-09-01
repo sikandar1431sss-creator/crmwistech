@@ -15,7 +15,7 @@ class Bankaccounts extends Admin_controller
     {
         $this->require_permission('view');
 
-        $data['title'] = 'Bank Accounts';
+        $data['title'] = 'Bank & Cash Accounts';
         $data['bank_accounts'] = $this->bankaccounts_model->get();
         $this->load->view('admin/bankaccounts/manage', $data);
     }
@@ -28,24 +28,26 @@ class Bankaccounts extends Admin_controller
             $post = $this->input->post();
             $this->validate_zoho_account_currency($post);
 
+            $account_type_label = (isset($post['account_type']) && strtolower($post['account_type']) === 'cash') ? 'Cash account' : 'Bank account';
+
             if ($id == '') {
                 $insert_id = $this->bankaccounts_model->add($post);
 
                 if ($insert_id) {
-                    set_alert('success', 'Bank account added successfully.');
+                    set_alert('success', $account_type_label . ' added successfully.');
                     redirect(admin_url('bankaccounts'));
                 }
 
-                set_alert('warning', 'Bank account was not added.');
+                set_alert('warning', $account_type_label . ' was not added.');
             } else {
                 $success = $this->bankaccounts_model->update($id, $post);
 
                 if ($success) {
-                    set_alert('success', 'Bank account updated successfully.');
+                    set_alert('success', $account_type_label . ' updated successfully.');
                     redirect(admin_url('bankaccounts'));
                 }
 
-                set_alert('warning', 'No bank account changes were saved.');
+                set_alert('warning', 'No changes were saved.');
             }
         }
 
@@ -56,10 +58,11 @@ class Bankaccounts extends Admin_controller
                 show_404();
             }
 
-            $data['title'] = 'Edit Bank Account';
+            $type_title = (isset($data['bank_account']->account_type) && $data['bank_account']->account_type === 'cash') ? 'Cash Account' : 'Bank Account';
+            $data['title'] = 'Edit ' . $type_title;
         } else {
             $data['bank_account'] = null;
-            $data['title'] = 'New Bank Account';
+            $data['title'] = 'New Bank / Cash Account';
         }
 
         $data['currencies'] = $this->currencies_model->get();
@@ -79,11 +82,11 @@ class Bankaccounts extends Admin_controller
         $response = $this->bankaccounts_model->delete($id);
 
         if (is_array($response) && isset($response['referenced'])) {
-            set_alert('warning', 'This bank account is used in receipts and cannot be deleted. Mark it inactive instead.');
+            set_alert('warning', 'This account is used in receipts and cannot be deleted. Mark it inactive instead.');
         } elseif ($response) {
-            set_alert('success', 'Bank account deleted successfully.');
+            set_alert('success', 'Account deleted successfully.');
         } else {
-            set_alert('warning', 'Problem deleting bank account.');
+            set_alert('warning', 'Problem deleting account.');
         }
 
         redirect(admin_url('bankaccounts'));
@@ -107,11 +110,12 @@ class Bankaccounts extends Admin_controller
         }
 
         $currency_code = $this->input->get('currency_code');
+        $account_type = $this->input->get('account_type');
 
         $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode([
-                'accounts' => $this->bankaccounts_model->get_zoho_accounts($currency_code),
+                'accounts' => $this->bankaccounts_model->get_zoho_accounts($currency_code, $account_type),
             ]));
     }
 
@@ -148,7 +152,7 @@ class Bankaccounts extends Admin_controller
                 ->set_content_type('application/json')
                 ->set_output(json_encode([
                     'success' => false,
-                    'message' => isset($result['message']) ? $result['message'] : 'Unable to fetch Zoho bank accounts.',
+                    'message' => isset($result['message']) ? $result['message'] : 'Unable to fetch Zoho accounts.',
                     'response' => $result,
                 ]));
             return;
@@ -161,7 +165,7 @@ class Bankaccounts extends Admin_controller
                 ->set_content_type('application/json')
                 ->set_output(json_encode([
                     'success' => false,
-                    'message' => 'No Zoho bank accounts found. Existing bank list was not changed.',
+                    'message' => 'No Zoho bank or cash accounts found. Existing accounts list was not changed.',
                 ]));
             return;
         }
@@ -170,7 +174,7 @@ class Bankaccounts extends Admin_controller
             ->set_content_type('application/json')
             ->set_output(json_encode([
                 'success' => true,
-                'message' => 'Synced ' . count($accounts) . ' Zoho bank account(s).',
+                'message' => 'Synced ' . count($accounts) . ' Zoho bank/cash account(s).',
                 'count' => count($accounts),
                 'accounts' => $accounts,
             ]));
@@ -218,8 +222,8 @@ class Bankaccounts extends Admin_controller
             if ($account_currency_code !== '' && $account_currency_code !== $currency_code) {
                 show_error(
                     'Selected Zoho account currency is ' . $account_currency_code
-                    . ', but bank currency is ' . $currency_code
-                    . '. Please select a matching Zoho account or change the bank currency.',
+                    . ', but account currency is ' . $currency_code
+                    . '. Please select a matching Zoho account or change the currency.',
                     400
                 );
             }
@@ -228,3 +232,4 @@ class Bankaccounts extends Admin_controller
         }
     }
 }
+
