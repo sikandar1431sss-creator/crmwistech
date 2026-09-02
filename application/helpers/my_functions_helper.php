@@ -1045,17 +1045,28 @@ function get_invoice_email_bank_details_html($invoice)
             ->row();
     }
 
-    // Default fallback bank details if no bank is selected or not found
+    // Default fallback bank details if no bank is selected or not found (Default: Mashreq Bank AED)
+    if (!$bank && $CI->db->table_exists('tblbankaccounts')) {
+        $bank = $CI->db
+            ->select('tblbankaccounts.*, tblcurrencies.name as currency_name')
+            ->from('tblbankaccounts')
+            ->join('tblcurrencies', 'tblcurrencies.id = tblbankaccounts.currency_id', 'left')
+            ->where('tblbankaccounts.id', 3)
+            ->where('tblbankaccounts.active', 1)
+            ->get()
+            ->row();
+    }
+
     if (!$bank) {
         return '<strong>Account Title:</strong> Wisdom Information Technology Solutions LLC<br />'
-            . '<strong>Bank:</strong> RAK Bank<br />'
-            . '<strong>Account Number:</strong> 0122341006001<br />'
-            . '<strong>IBAN:</strong> AE57 0400 0001 2234 1006 001';
+            . '<strong>Bank:</strong> Mashreq Bank<br />'
+            . '<strong>Account Number / IBAN:</strong> AE 640 330 000 0191 0218 5917<br />'
+            . '<strong>Swift:</strong> BOMLAEAD';
     }
 
     $account_type = isset($bank->account_type) ? strtolower(trim((string)$bank->account_type)) : 'bank';
     $title = !empty($bank->title) ? trim($bank->title) : 'Wisdom Information Technology Solutions LLC';
-    $bank_name = !empty($bank->full_bank_name) ? trim($bank->full_bank_name) : (!empty($bank->bank_nick_name) ? trim($bank->bank_nick_name) : '');
+    $bank_name = !empty($bank->full_bank_name) ? trim($bank->full_bank_name) : (!empty($bank->bank_nick_name) ? trim($bank->bank_nick_name) : 'Mashreq Bank');
 
     $lines = [];
     $lines[] = '<strong>Account Title:</strong> ' . html_escape($title);
@@ -1092,9 +1103,14 @@ function replace_invoice_email_bank_details($message, $bank_details_html)
         $message
     );
 
-    $pattern = '/<p>\s*<strong>\s*Account Title:\s*<\/strong>.*?<strong>\s*IBAN:\s*<\/strong>\s*AE57\s*0400\s*0001\s*2234\s*1006\s*001\s*<\/p>/is';
-    if (preg_match($pattern, $message)) {
-        $message = preg_replace($pattern, '<p>' . $bank_details_html . '</p>', $message);
+    $pattern_rak = '/<p>\s*<strong>\s*Account Title:\s*<\/strong>.*?RAK Bank.*?<\/p>/is';
+    if (preg_match($pattern_rak, $message)) {
+        $message = preg_replace($pattern_rak, '<p>' . $bank_details_html . '</p>', $message);
+    }
+
+    $pattern_old = '/<p>\s*<strong>\s*Account Title:\s*<\/strong>.*?<strong>\s*IBAN:\s*<\/strong>\s*AE57\s*0400\s*0001\s*2234\s*1006\s*001\s*<\/p>/is';
+    if (preg_match($pattern_old, $message)) {
+        $message = preg_replace($pattern_old, '<p>' . $bank_details_html . '</p>', $message);
     }
 
     return $message;
